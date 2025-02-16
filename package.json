@@ -4,7 +4,7 @@
   "description": "This is a scraper service that facilitates scraping of web pages via an API",
   "main": "./dist/main.js",
   "scripts": {
-    "build": "rm -rf dist && tsc && cp -R src/Extract/Prompts dist/Extract/Prompts",
+    "build": "rm -rf dist && tsc",
     "buildTypes": "ts-node ./scripts/genTypes.ts",
     "verifyTypes": "ts-node ./scripts/verifyTypes.ts",
     "dev": "ts-node ./src/main.ts --debug",
