@@ -17,8 +17,8 @@ export async function preProcess(
 ) {
 	const cache: NodeCache = res.locals.cache;
 
-	let sessionID: string;
-	let session: BaseSession;
+	let sessionID: string | undefined = undefined;
+	let session: BaseSession | undefined = undefined;
 
 	// Has sessionID
 	let hasRunningSession: boolean = false;
@@ -35,7 +35,7 @@ export async function preProcess(
 	}
 
 	if (req.body.sessionID) {
-		sessionID = req.body.sessionID;
+		sessionID = req.body.sessionID as string;
 
 		// check if session still exists as a browser
 		const browser = cmgrState.browsers.find((b)=> b.sessionID === sessionID)
@@ -72,7 +72,7 @@ export async function preProcess(
 		}
 	}
 
-	if (hasRunningSession) {
+	if (session && sessionID && hasRunningSession) {
 		try {
 			// Note do we need to refresh it ?
 			if (session.type === "browser") {
@@ -144,7 +144,7 @@ export async function preProcess(
 export async function postProcess(req: Request, res: Response) {
 	const cache: NodeCache = res.locals.cache;
 
-	const session: BaseSession = cache.get(res.locals.sessionID);
+	const session: BaseSession | undefined = cache.get(res.locals.sessionID);
 	if (session) {
 		res.log.info({
 			job:  `ID-${req.path}:${res.locals.sessionID}:${res.locals.jobID}`

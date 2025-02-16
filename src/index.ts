@@ -16,10 +16,10 @@ import PageRoutesHandler from "./routes/page"
 import SessionRoutesHandler from "./routes/session"
 import { IDetailedStatusResponse } from './apis/browser-cmgr/detailedStatus'
 
-let httpServer: Server = undefined
+let httpServer: Server | undefined = undefined
 let wsProxy = httpProxy.createProxyServer({})
 let vncProxy = httpProxy.createProxyServer({})
-let cache: NodeCache = undefined
+let cache: NodeCache | undefined = undefined
 
 export type TConfig = {
     EXPRESS_PORT: string
@@ -135,7 +135,7 @@ export async function main(deployment: string, config: TConfig, logPath?: string
         }
 
         try {
-            const sessionID = req.url.replace('/ws/', '').replace('/vnc/', '')
+            const sessionID = req.url && req.url.replace('/ws/', '').replace('/vnc/', '')
             // check if sessionId is in cache
             const browser = cmgrState.browsers.find((b)=> b.sessionID === sessionID)
             if(!browser || browser.leaseTime === -1) {
@@ -144,7 +144,7 @@ export async function main(deployment: string, config: TConfig, logPath?: string
             }
 
             // Handle WebSocket connections for browser debugging
-            if (req.url.startsWith('/ws/')) {
+            if (req.url && req.url.startsWith('/ws/')) {
                 const targetUrl = `ws://${browser.labels.ip}:${browser.ports.browser}/devtools/browser/${browser.labels.wsPath}`
                 Logger.info({
                     message: "Proxying WS connection",
@@ -159,7 +159,7 @@ export async function main(deployment: string, config: TConfig, logPath?: string
                 })
             }
             // Handle VNC WebSocket connections
-            else if (req.url.startsWith('/vnc/')) {
+            else if (req.url && req.url.startsWith('/vnc/')) {
                 const targetUrl = `ws://${browser.labels.ip}:${browser.ports.vnc}`
                 Logger.info({
                     message: "Proxying VNC connection",
@@ -205,7 +205,7 @@ export async function shutdown(): Promise<void> {
                 await Promise.all(keys.map(async (key) => {
                     const session = data[key].v;
                     await freeUpSession(session.browserID);
-                    cache.del(session.sessionID);
+                    if(cache) cache.del(session.sessionID);
                 }));
             }
             resolve();

@@ -101,12 +101,12 @@ export async function getSessionInfo(
 	browserID?: string,
 	getNewBrowserIfNoResume: boolean = false,
 	network: Network = 'residential',
-	country: Country = TheGlobe.getCountryByCode('US'),
+	country: Country | undefined = TheGlobe.getCountryByCode('US'),
 	useProxy: boolean = false,
 	sessionData: string = '',
 	isExtending: boolean = false,
 ): Promise<SessionInfo> {
-	let payload = {
+	let payload: Record<string, unknown> = {
 		sessionID: userID,
 		leaseTime: leaseTime,
 	};
@@ -166,7 +166,7 @@ export async function getSessionInfo(
 
 	const attemptsNum = 10;
 	let currentAttemptNum = 0;
-	let resp: AxiosResponse<any> = null;
+	let resp: AxiosResponse<any> | null = null;
 	while (currentAttemptNum < attemptsNum) {
 		try {
 			resp = await axios.post(
@@ -179,7 +179,7 @@ export async function getSessionInfo(
 				},
 			);
 
-			if (resp.data.success) {
+			if (!resp || resp.data.success) {
 				break;
 			} else {
 				const logCtx = {
@@ -195,7 +195,7 @@ export async function getSessionInfo(
 				} else {
 					logCtx.msg = 'Failed to get an existing browser for a user';
 				}
-				logger.error(logCtx, "browsers-cmgr:getSessionInfo:198");
+				if(logger) logger.error(logCtx, "browsers-cmgr:getSessionInfo:198");
 
 				// handle the error, based on its type
 				switch (resp.data.error?.type) {
@@ -233,7 +233,7 @@ export async function getSessionInfo(
 			};
 
 			if (resp) logCtx['response'] = resp.data;
-			logger.error(logCtx, "browsers-cmgr:getSessionInfo:237");
+			if(logger) logger.error(logCtx, "browsers-cmgr:getSessionInfo:237");
 		}
 
 		await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -249,7 +249,7 @@ export async function getSessionInfo(
 			currentAttemptNum,
 			attemptsNum,
 		};
-		logger.error(logCtx, "browsers-cmgr:getSessionInfo:252");
+		if(logger) logger.error(logCtx, "browsers-cmgr:getSessionInfo:252");
 
 		return Promise.reject(GetStealthiumErrors.MULTI_ATTEMPTS_ERROR);
 	}
@@ -262,7 +262,7 @@ export async function getSessionInfo(
 		currentAttemptNum,
 	};
 
-	logger.info(logCtx, "browsers-cmgr:getSessionInfo:265");
+	if(logger) logger.info(logCtx, "browsers-cmgr:getSessionInfo:265");
 
 	return Promise.resolve({
 		sessionID: userID,
