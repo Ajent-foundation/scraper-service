@@ -54,7 +54,7 @@ async function extendSession(
 		// check if session still exists
 		if (browser) {
             await getSessionInfo(
-                res.locals.logger,
+                res.log,
                 browser.clientID,
                 req.body.leaseTime || 10,
                 browser.isDebug,

@@ -171,7 +171,7 @@ async function createSession(
 
 				// Browser Getter
 				sessionInfo = await getSessionInfo(
-					res.locals.logger,
+					res.log,
 					req.body.clientID,
 					req.body.leaseTime || 10,
 					browserConfig.isDebug ? browserConfig.isDebug : false,
