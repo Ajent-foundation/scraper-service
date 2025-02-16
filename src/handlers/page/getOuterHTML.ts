@@ -68,7 +68,6 @@ async function getOuterHTML(
 			response[`(${position.x},${position.y})`] = outerHTML;
 		}
 
-		res.locals.httpInfo.status_code = 200;
 		puppeteerBrowser.disconnect();
 		UTILITY.EXPRESS.respond(res, 200, {
 			sessionID: session.sessionID,
@@ -76,13 +75,10 @@ async function getOuterHTML(
 		});
 	} catch (err) {
 		// log Error
-		res.locals.httpInfo.status_code = 500;
 		res.log.error({
 			message: err.message,
 			stack: err.stack,
-			request_id: res.locals.httpInfo.request_id,
 			startTime: res.locals.generalInfo.startTime,
-			httpInfo: res.locals.httpInfo,
 		}, "page:getOuterHTML:68");
 
 		UTILITY.EXPRESS.respond(res, 500, {

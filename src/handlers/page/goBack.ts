@@ -69,9 +69,7 @@ async function goBack(
 		} catch (e) {
 			res.log.error({
 				message: 'Failed to go back to page',
-				request_id: res.locals.httpInfo.request_id,
 				startTime: res.locals.generalInfo.startTime,
-				httpInfo: res.locals.httpInfo,
 			}, "page:goBack:54");
 		}
 
@@ -133,9 +131,7 @@ async function goBack(
 					res.log.error({
 						message:
 							'Execution context was destroyed, retrying..',
-						request_id: res.locals.httpInfo.request_id,
 						startTime: res.locals.generalInfo.startTime,
-						httpInfo: res.locals.httpInfo,
 					}, "page:goBack:92");
 					retryAttempts--;
 					continue;
@@ -146,7 +142,6 @@ async function goBack(
 		}
 
 		// log success
-		res.locals.httpInfo.status_code = 200;
 		res.log.info('Page loaded successfully');
 
 		// Get page image and scroller info
@@ -180,13 +175,10 @@ async function goBack(
 		});
 	} catch (err) {
 		// log Error
-		res.locals.httpInfo.status_code = 500;
 		res.log.error({
 			message: err.message,
 			stack: err.stack,
-			request_id: res.locals.httpInfo.request_id,
 			startTime: res.locals.generalInfo.startTime,
-			httpInfo: res.locals.httpInfo,
 		}, "page:goBack:119");
 
 		UTILITY.EXPRESS.respond(res, 500, {

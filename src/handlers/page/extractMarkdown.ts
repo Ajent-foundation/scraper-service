@@ -81,7 +81,6 @@ export async function extractMarkdown(
         })
     } catch(err){
         // log Error
-        res.locals.httpInfo.status_code = 500
         res.log.error({
             message: err.message, 
             stack: err.stack

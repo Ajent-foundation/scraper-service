@@ -68,7 +68,6 @@ async function invalidateSession(
 			}
 
 			// log success
-			res.locals.httpInfo.status_code = 200;
 			res.log.info({
 				message: 'session invalidated',
 				sessionID: 'sessionID',
@@ -77,12 +76,9 @@ async function invalidateSession(
 			return UTILITY.EXPRESS.respond(res, 200, {});
 		} else {
 			// log error
-			res.locals.httpInfo.status_code = 404;
 			res.log.error({
 				message: 'session not found',
-				request_id: res.locals.httpInfo.request_id,
 				startTime: res.locals.generalInfo.startTime,
-				httpInfo: res.locals.httpInfo,
 			}, "session:invalidateSession:82");
 			return UTILITY.EXPRESS.respond(res, 404, {
 				code: 'SESSION_NOT_FOUND',
@@ -91,13 +87,10 @@ async function invalidateSession(
 		}
 	} catch (err) {
 		// Log error
-		res.locals.httpInfo.status_code = 500;
 		res.log.error({
 			message: err.message,
 			stack: err.stack,
-			request_id: res.locals.httpInfo.request_id,
 			startTime: res.locals.generalInfo.startTime,
-			httpInfo: res.locals.httpInfo,
 		}, "session:invalidateSession:102");
 		return UTILITY.EXPRESS.respond(res, 500, {
 			code: 'INTERNAL_SERVER_ERROR',

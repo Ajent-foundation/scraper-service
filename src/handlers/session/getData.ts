@@ -56,13 +56,10 @@ async function getData(
 		}
 	} catch (err) {
 		// Log error
-		res.locals.httpInfo.status_code = 500;
 		res.log.error({
 			message: err.message,
 			stack: err.stack,
-			request_id: res.locals.httpInfo.request_id,
 			startTime: res.locals.generalInfo.startTime,
-			httpInfo: res.locals.httpInfo,
 		}, "session:getData:39");
 		return UTILITY.EXPRESS.respond(res, 500, {
 			code: 'INTERNAL_SERVER_ERROR',

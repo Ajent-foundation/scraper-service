@@ -25,13 +25,10 @@ export const ERR_HANDLER: ErrorRequestHandler = (err:any, req:Request, res:Respo
             errors: err.errors
         })
     } else {
-        res.locals.httpInfo.status_code = 500
         res.log.error({
             message: err.message, 
             stack: err.stack,
-            request_id: res.locals.httpInfo.request_id,
             startTime: res.locals.generalInfo.startTime,
-            httpInfo: res.locals.httpInfo
         }, "middlewares:generics:ERR_HANDLER")
         UTILITY.EXPRESS.respond(res, 500, {
             code: "UNKNOWN_ERROR",

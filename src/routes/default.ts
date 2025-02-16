@@ -7,8 +7,6 @@ const DEFAULT_ROUTES = Router();
 // The Routing Sheet
 DEFAULT_ROUTES.get('/', (req: Request, res: Response) => {
 	// Init vars
-	res.locals.httpInfo.status_code = 200;
-
 	return UTILITY.EXPRESS.respond(res, 200, {
 		message: 'Scraper-service-ts is running!',
 	});

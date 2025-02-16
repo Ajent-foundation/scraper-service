@@ -49,20 +49,16 @@ async function getPDF(
 		// Send File Response
 		const base64PDF = pagePDF.toString('base64');
 
-		res.locals.httpInfo.status_code = 200;
 		puppeteerBrowser.disconnect();
 		UTILITY.EXPRESS.respond(res, 200, {
 			page: base64PDF,
 		});
 	} catch (err) {
 		// log Error
-		res.locals.httpInfo.status_code = 500;
 		res.log.error({
 			message: err.message,
 			stack: err.stack,
-			request_id: res.locals.httpInfo.request_id,
 			startTime: res.locals.generalInfo.startTime,
-			httpInfo: res.locals.httpInfo,
 		}, "page:getPDF:57");
 
 		UTILITY.EXPRESS.respond(res, 500, {

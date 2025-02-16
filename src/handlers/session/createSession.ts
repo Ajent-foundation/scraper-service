@@ -81,12 +81,9 @@ async function createSession(
 		isValidSession = cache.has(sessionID);
 		if (isValidSession && browser) {
 			// log Error
-			res.locals.httpInfo.status_code = 400;
 			res.log.error({
 				message: 'parallel session creation not allowed',
-				request_id: res.locals.httpInfo.request_id,
 				startTime: res.locals.generalInfo.startTime,
-				httpInfo: res.locals.httpInfo,
 			}, "session:createSession:36");
 
 			// cannot overwrite existing session
@@ -113,12 +110,9 @@ async function createSession(
 						req.body.config.viewport.height > 16384 ||
 						req.body.config.viewport.height < 962
 					) {
-						res.locals.httpInfo.status_code = 400;
 						res.log.error({
 							message: 'Invalid Viewport',
-							request_id: res.locals.httpInfo.request_id,
 							startTime: res.locals.generalInfo.startTime,
-							httpInfo: res.locals.httpInfo,
 						}, "session:createSession:69");
 
 						return UTILITY.EXPRESS.respond(res, 400, {
@@ -143,12 +137,9 @@ async function createSession(
 				let country: Country;
 				if (req.body.useProxy) {
 					if (!req.body.proxyConfig) {
-						res.locals.httpInfo.status_code = 400;
 						res.log.error({
 							message: 'Missing proxyConfig',
-							request_id: res.locals.httpInfo.request_id,
 							startTime: res.locals.generalInfo.startTime,
-							httpInfo: res.locals.httpInfo,
 						}, "session:createSession:63");
 
 						return UTILITY.EXPRESS.respond(res, 400, {
@@ -165,12 +156,9 @@ async function createSession(
 					if (country) {
 						network = req.body.proxyConfig.network;
 					} else {
-						res.locals.httpInfo.status_code = 400;
 						res.log.error({
 							message: 'Invalid Country Code',
-							request_id: res.locals.httpInfo.request_id,
 							startTime: res.locals.generalInfo.startTime,
-							httpInfo: res.locals.httpInfo,
 						}, "session:createSession:88");
 
 						return UTILITY.EXPRESS.respond(res, 400, {
@@ -205,7 +193,6 @@ async function createSession(
 				);
 			} catch (err) {
 				// log Error
-				res.locals.httpInfo.status_code = 503;
 				res.log.error({
 					message: err.message,
 					stack: err.stack,
@@ -236,7 +223,6 @@ async function createSession(
 			cache.set(sessionID, session, res.locals.cacheTimeout);
 
 			// log success
-			res.locals.httpInfo.status_code = 201;
 			res.log.info({
 				message: 'Session Created Successfully',
 				sessionID: sessionID,
@@ -248,13 +234,10 @@ async function createSession(
 		}
 	} catch (err) {
 		// log error
-		res.locals.httpInfo.status_code = 500;
 		res.log.error({
 			message: err.message,
 			stack: err.stack,
-			request_id: res.locals.httpInfo.request_id,
 			startTime: res.locals.generalInfo.startTime,
-			httpInfo: res.locals.httpInfo,
 		}, "session:createSession:169");
 
 		return UTILITY.EXPRESS.respond(res, 500, {

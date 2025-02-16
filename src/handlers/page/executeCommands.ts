@@ -153,13 +153,10 @@ async function executeCommands(
 		console.log('Execute commands error:', err);
 
 		// log Error
-		res.locals.httpInfo.status_code = 500;
 		res.log.error({
 			message: err.message,
-				stack: err.stack,
-			request_id: res.locals.httpInfo.request_id,
+			stack: err.stack,
 			startTime: res.locals.generalInfo.startTime,
-			httpInfo: res.locals.httpInfo,
 		}, "page:executeCommands:209");
 
 		UTILITY.EXPRESS.respond(res, 500, {

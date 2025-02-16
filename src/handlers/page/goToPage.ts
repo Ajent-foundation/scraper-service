@@ -76,9 +76,7 @@ async function goToPage(
 		} catch (e) {
 			res.log.error({
 				message: 'Timeout Error while going to page',
-				request_id: res.locals.httpInfo.request_id,
 				startTime: res.locals.generalInfo.startTime,
-				httpInfo: res.locals.httpInfo,
 			}, "page:goToPage:54");
 		}
 
@@ -140,9 +138,7 @@ async function goToPage(
 					res.log.error({
 						message:
 							'Execution context was destroyed, retrying..',
-						request_id: res.locals.httpInfo.request_id,
 						startTime: res.locals.generalInfo.startTime,
-						httpInfo: res.locals.httpInfo,
 					}, "page:goToPage:92");
 					retryAttempts--;
 					continue;
@@ -153,7 +149,6 @@ async function goToPage(
 		}
 
 		// log success
-		res.locals.httpInfo.status_code = 200;
 		res.log.info('Page loaded successfully');
 
 		// Get page image and scroller info
@@ -208,13 +203,10 @@ async function goToPage(
 		});
 	} catch (err) {
 		// log Error
-		res.locals.httpInfo.status_code = 500;
 		res.log.error({
 			message: err.message,
 			stack: err.stack,
-			request_id: res.locals.httpInfo.request_id,
 			startTime: res.locals.generalInfo.startTime,
-			httpInfo: res.locals.httpInfo,
 		}, "page:goToPage:119");
 
 		UTILITY.EXPRESS.respond(res, 500, {
