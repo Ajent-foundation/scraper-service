@@ -1,122 +1,135 @@
 import { Page } from 'puppeteer';
 import { simplifyDOM } from '../../webFuncs/simplifyDOM';
+import { Logger } from 'pino';
 
-async function setMouseDebugger(page:Page) {
-	await page.evaluateOnNewDocument(() => {
-		// Install mouse helper only for top-level frame.
-		if (window !== window.parent) return;
-		window.addEventListener(
-			'DOMContentLoaded',
-			() => {
-				let moveTimer: string | number | NodeJS.Timeout; // Timer to track mouse movement
+async function setMouseDebugger(
+	logger: Logger,
+	headers: Record<string, string>,
+	page:Page
+) {
+	try {
+		await page.evaluateOnNewDocument(() => {
+			// Install mouse helper only for top-level frame.
+			if (window !== window.parent) return;
+			window.addEventListener(
+				'DOMContentLoaded',
+				() => {
+					let moveTimer: string | number | NodeJS.Timeout; // Timer to track mouse movement
 
-				const box = document.createElement('puppeteer-mouse-pointer');
-				const coords = document.createElement('div');
-				const styleElement = document.createElement('style');
-				styleElement.innerHTML = `
-					puppeteer-mouse-pointer {
-						pointer-events: none;
-						position: absolute;
-						top: 0;
-						z-index: 10000;
-						left: 0;
-						width: 20px;
-						height: 20px;
-						background: rgba(0,0,0,.4);
-						border: 1px solid white;
-						border-radius: 10px;
-						margin: -10px 0 0 -10px;
-						padding: 0;
-						transition: background .2s, border-radius .2s, border-color .2s;
-					}
-					puppeteer-mouse-pointer.button-1 {
-						transition: none;
-						background: rgba(0,0,0,0.9);
-					}
-					puppeteer-mouse-pointer.button-2 {
-						transition: none;
-						border-color: rgba(0,0,255,0.9);
-					}
-					puppeteer-mouse-pointer.button-3 {
-						transition: none;
-						border-radius: 4px;
-					}
-					puppeteer-mouse-pointer.button-4 {
-						transition: none;
-						border-color: rgba(255,0,0,0.9);
-					}
-					puppeteer-mouse-pointer.button-5 {
-						transition: none;
-						border-color: rgba(0,255,0,0.9);
-					}
-					div.coords { /* Styling for the coordinates div */
-						position: absolute;
-						top: 0;
-						left: 0;
-						color: white;
-						font-size: 10px;
-						z-index: 10001;
-						pointer-events: none; /* Ensure it doesn't interfere with mouse events */
-						background: rgba(0, 0, 0, 0.7); /* Semi-transparent background */
-						border-radius: 4px;
-						padding: 2px 4px;
-						margin: 20px 0 0 -10px; /* Adjust to not overlap with the box */
-					}
-				`;
+					const box = document.createElement('puppeteer-mouse-pointer');
+					const coords = document.createElement('div');
+					const styleElement = document.createElement('style');
+					styleElement.innerHTML = `
+						puppeteer-mouse-pointer {
+							pointer-events: none;
+							position: absolute;
+							top: 0;
+							z-index: 10000;
+							left: 0;
+							width: 20px;
+							height: 20px;
+							background: rgba(0,0,0,.4);
+							border: 1px solid white;
+							border-radius: 10px;
+							margin: -10px 0 0 -10px;
+							padding: 0;
+							transition: background .2s, border-radius .2s, border-color .2s;
+						}
+						puppeteer-mouse-pointer.button-1 {
+							transition: none;
+							background: rgba(0,0,0,0.9);
+						}
+						puppeteer-mouse-pointer.button-2 {
+							transition: none;
+							border-color: rgba(0,0,255,0.9);
+						}
+						puppeteer-mouse-pointer.button-3 {
+							transition: none;
+							border-radius: 4px;
+						}
+						puppeteer-mouse-pointer.button-4 {
+							transition: none;
+							border-color: rgba(255,0,0,0.9);
+						}
+						puppeteer-mouse-pointer.button-5 {
+							transition: none;
+							border-color: rgba(0,255,0,0.9);
+						}
+						div.coords { /* Styling for the coordinates div */
+							position: absolute;
+							top: 0;
+							left: 0;
+							color: white;
+							font-size: 10px;
+							z-index: 10001;
+							pointer-events: none; /* Ensure it doesn't interfere with mouse events */
+							background: rgba(0, 0, 0, 0.7); /* Semi-transparent background */
+							border-radius: 4px;
+							padding: 2px 4px;
+							margin: 20px 0 0 -10px; /* Adjust to not overlap with the box */
+						}
+					`;
 
-				document.head.appendChild(styleElement);
-				document.body.appendChild(box);
-				coords.classList.add('coords');
-				document.body.appendChild(coords);
+					document.head.appendChild(styleElement);
+					document.body.appendChild(box);
+					coords.classList.add('coords');
+					document.body.appendChild(coords);
 
-				document.addEventListener(
-					'mousemove',
-					(event) => {
-						clearTimeout(moveTimer);
-						box.style.left = event.pageX + 'px';
-						box.style.top = event.pageY + 'px';
-						coords.style.left = event.pageX + 'px';
-						coords.style.top = event.pageY + 0 + 'px';
+					document.addEventListener(
+						'mousemove',
+						(event) => {
+							clearTimeout(moveTimer);
+							box.style.left = event.pageX + 'px';
+							box.style.top = event.pageY + 'px';
+							coords.style.left = event.pageX + 'px';
+							coords.style.top = event.pageY + 0 + 'px';
 
-						// Set a timer that will update coordinates after the mouse stops moving for 100ms
-						moveTimer = setTimeout(() => {
-							coords.textContent = `X: ${event.pageX}, Y: ${event.pageY}`;
-						}, 100);
-					},
-					true,
-				);
+							// Set a timer that will update coordinates after the mouse stops moving for 100ms
+							moveTimer = setTimeout(() => {
+								coords.textContent = `X: ${event.pageX}, Y: ${event.pageY}`;
+							}, 100);
+						},
+						true,
+					);
 
-				document.addEventListener(
-					'mousedown',
-					(event) => {
-						updateButtons(event.buttons);
-						box.classList.add('button-' + event.which);
-					},
-					true,
-				);
+					document.addEventListener(
+						'mousedown',
+						(event) => {
+							updateButtons(event.buttons);
+							box.classList.add('button-' + event.which);
+						},
+						true,
+					);
 
-				document.addEventListener(
-					'mouseup',
-					(event) => {
-						updateButtons(event.buttons);
-						box.classList.remove('button-' + event.which);
-					},
-					true,
-				);
+					document.addEventListener(
+						'mouseup',
+						(event) => {
+							updateButtons(event.buttons);
+							box.classList.remove('button-' + event.which);
+						},
+						true,
+					);
 
-				function updateButtons(buttons) {
-					for (let i = 0; i < 5; i++) {
-						box.classList.toggle(
-							'button-' + (i + 1),
-							//@ts-ignore
-							buttons & (1 << i),
-						);
+					function updateButtons(buttons) {
+						for (let i = 0; i < 5; i++) {
+							box.classList.toggle(
+								'button-' + (i + 1),
+								//@ts-ignore
+								buttons & (1 << i),
+							);
+						}
 					}
-				}
-			},
-			false,
-		);
-	});
+				},
+				false,
+			);
+		});
+	} catch (error) {
+		logger.error({
+			...headers,
+			message: error instanceof Error ? error.message : "Unknown error",
+			stack: error instanceof Error ? error.stack : undefined,
+		}, "SET_MOUSE_DEBUGGER")
+	}
 }
 
 async function attachFloatingButtons(page){
@@ -265,8 +278,12 @@ export async function overrideContextMenu(page: Page) {
 	});
 }
 
-export async function attachDebuggers(page: Page) {
-	await setMouseDebugger(page);
+export async function attachDebuggers(
+	logger: Logger,
+	headers: Record<string, string>,
+	page: Page
+) {
+	if (page) await setMouseDebugger(logger, headers, page);
 	// await overrideContextMenu(page);
 	// await attachFloatingButtons(page)
 }

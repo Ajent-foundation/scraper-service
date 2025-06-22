@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
+import { Logger } from 'pino';
 import {
 	getSessionInfo,
 } from '../../apis/browsers-cmgr';
@@ -55,13 +56,18 @@ async function extendSession(
 		if (browser) {
             await getSessionInfo(
                 res.log,
+				{
+					...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+				},
                 browser.clientID,
                 req.body.leaseTime || 10,
                 browser.isDebug,
                 browser.viewport,
                 sessionID,
                 {},
+				{},
                 null,
+				"legacy",
                 false,
                 undefined,
                 undefined,
@@ -76,19 +82,22 @@ async function extendSession(
             });
 		} else {
             // log Error
+			res.locals.httpInfo.status_code = 404;
+
 			// cannot overwrite existing session
 			return UTILITY.EXPRESS.respond(res, 404, {
 				code: 'SESSION_NOT_FOUND',
 				message: 'Session Not Found',
 			});
 		}
-	} catch (err) {
+	} catch (error) {
 		// log error
+		res.locals.httpInfo.status_code = 500;
 		res.log.error({
-			message: err.message,
-			stack: err.stack,
-			startTime: res.locals.generalInfo.startTime,
-		}, "session:extendSession:169");
+			...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+			message: error instanceof Error ? error.message : "Unknown error",
+			stack: error instanceof Error ? error.stack : undefined,
+		}, "ENDPOINT_ERROR")
 
 		return UTILITY.EXPRESS.respond(res, 500, {
 			code: 'INTERNAL_SERVER_ERROR',

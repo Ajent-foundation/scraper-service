@@ -1,9 +1,9 @@
-import { selectFileFromDialog } from "../../../../apis/node"
 import { Logger } from "pino"
+import { selectFileFromDialog } from "../../../../apis/node"
 
-export default async function execute(logger: Logger, url: string, fileName: string) {
+export default async function execute(logger: Logger, headers: Record<string, string>, url: string, fileName: string) {
     try{
-        await selectFileFromDialog(logger, url, fileName)
+        await selectFileFromDialog(logger, headers, url, fileName)
         return {}
     } catch (error: unknown) {
         return {

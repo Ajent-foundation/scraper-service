@@ -1,9 +1,9 @@
+import { Logger } from 'pino'
 import { isBrowserActive } from "../../../../apis/node"
-import { Logger } from "pino"
 
-export default async function execute(logger: Logger, url: string) {
+export default async function execute(logger: Logger, headers: Record<string, string>, url: string) {
     try{
-        return await isBrowserActive(logger, url)
+        return await isBrowserActive(logger, headers, url)
     } catch (error: unknown) {
         return {
             code: 'FAILED_TO_CLOSE_DIALOG',

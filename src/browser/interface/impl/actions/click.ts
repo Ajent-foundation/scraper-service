@@ -14,27 +14,30 @@ export default async function execute(
 	cursor: GhostCursor,
 	body: IBody,
 ) {
-	// Move to the element
-	// Move to the element
-	if (cursor) {
-		await cursor.moveTo({ x: body.x, y: body.y });
+	try {
+		// Move to the element
+		if (cursor) {
+			await cursor.moveTo({ x: body.x, y: body.y });
 
-		const pos = cursor.getLocation();
-		await setMousePosition(page, pos.x, pos.y);
-	} else {
-		await page.mouse.move(body.x, body.y);
+			const pos = cursor.getLocation();
+			await setMousePosition(page, pos.x, pos.y);
+		} else {
+			await page.mouse.move(body.x, body.y);
+		}
+
+		// Click the element
+		await page.mouse.click(body.x, body.y, {
+			clickCount: body.clickCount,
+			delay: 50,
+			button: body.button,
+		});
+
+		// Wait for navigation to complete if it happens
+
+		return {};
+	} catch (error) {
+		console.error('Error during click operation:', error.message);
+		// Return empty object to maintain the expected return type
+		return {};
 	}
-
-	console.log('CLICK', body.x, body.y);
-	// print viewport size
-	console.log('viewport', page.viewport());
-
-	// Click the element
-	await page.mouse.click(body.x, body.y, {
-		clickCount: body.clickCount,
-		delay: 50,
-		button: body.button,
-	});
-
-	return {};
 }

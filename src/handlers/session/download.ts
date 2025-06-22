@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import NodeCache from 'node-cache';
+import { Logger } from 'pino';
 import { BrowserSession } from '../../apis/browsers-cmgr';
 import UTILITY from '../../helpers/utility';
 import { downloadSessionData } from '../../apis/node';
@@ -48,7 +49,13 @@ async function download(
 			return UTILITY.EXPRESS.respond(
 				res,
 				200,
-				await downloadSessionData(res.log, baseUrl),
+				await downloadSessionData(
+					res.log,
+					{
+						...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+					},
+					baseUrl,
+				),
 			);
 		} else {
 			// Session does not exist
@@ -57,13 +64,15 @@ async function download(
 				message: 'Session not found',
 			});
 		}
-	} catch (err) {
+	} catch (error) {
 		// Log error
+		res.locals.httpInfo.status_code = 500;
 		res.log.error({
-			message: err.message,
-			stack: err.stack,
-			startTime: res.locals.generalInfo.startTime,
-		}, "session:download:39");
+			...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+			message: error instanceof Error ? error.message : "Unknown error",
+			stack: error instanceof Error ? error.stack : undefined,
+		}, "ENDPOINT_ERROR")
+
 		return UTILITY.EXPRESS.respond(res, 500, {
 			code: 'INTERNAL_SERVER_ERROR',
 			message: 'Internal Server Error',

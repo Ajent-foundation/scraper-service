@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import NodeCache from 'node-cache';
+import { Logger } from 'pino';
 import { BrowserSession } from '../../apis/browsers-cmgr';
 import { BaseRequest } from '../../helpers/Base';
 import UTILITY from '../../helpers/utility';
@@ -38,8 +39,13 @@ async function getWindowInfo(
 
 	// Logic
 	try {
-		const puppeteerBrowser = await connectToBrowser(session.url);
-		const { page } = await getCurrentPage(puppeteerBrowser, session.config);
+		const puppeteerBrowser = await connectToBrowser(
+			res.log,
+			res.locals.importantHeaders ? res.locals.importantHeaders : {},
+			session.url,
+			res.locals.sessionID
+		);
+		const { page } = await getCurrentPage(res.log, res.locals.importantHeaders ? res.locals.importantHeaders : {}, puppeteerBrowser, session.config);
 
 		// Get window info
 		const devicePixelRatio = await page.evaluate(
@@ -60,7 +66,8 @@ async function getWindowInfo(
 			() => document.body.scrollHeight,
 		);
 
-		puppeteerBrowser.disconnect();
+		res.locals.httpInfo.status_code = 200;
+		// puppeteerBrowser.disconnect();
 		UTILITY.EXPRESS.respond(res, 200, {
 			sessionID: session.sessionID,
 			windowInfo: {
@@ -77,13 +84,14 @@ async function getWindowInfo(
 				document_scroll_height: document_scroll_height,
 			},
 		});
-	} catch (err) {
+	} catch (error) {
 		// log Error
+		res.locals.httpInfo.status_code = 500;
 		res.log.error({
-			message: err.message,
-			stack: err.stack,
-			startTime: res.locals.generalInfo.startTime,
-		}, "page:getWindowInfo:74");
+			...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+			message: error instanceof Error ? error.message : "Unknown error",
+			stack: error instanceof Error ? error.stack : undefined,
+		}, "ENDPOINT_ERROR")
 
 		UTILITY.EXPRESS.respond(res, 500, {
 			code: 'INTERNAL_SERVER_ERROR',

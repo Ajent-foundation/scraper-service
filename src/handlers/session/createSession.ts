@@ -30,10 +30,21 @@ export const RequestBodySchema = z.object({
 	}).optional(),
 	sessionData: z.string().optional(),
 	fingerprintID: z.string().optional(),
-	driver: z.string().optional(),
 	reportKey: z.string().optional(),
 	callbackURL: z.string().optional(),
+	driver: z.string().optional(),
+	numberOfCameras: z.number().min(1).max(4).optional(),
+ 	numberOfMicrophones: z.number().min(1).max(4).optional(),
+ 	numberOfSpeakers: z.number().min(1).max(4).optional(),
+ 	locale: z.string().optional(),
+ 	language: z.string().optional(),
+ 	timezone: z.string().optional(),
+ 	platform: z.enum(["win32", "linux", "darwin"]).optional(),
+ 	extensions: z.array(z.string()).optional(),
+ 	overrideUserAgent: z.string().optional(),
+	vnc: z.enum(["legacy", "new"]).optional(),
 });
+
 
 export const RequestQuerySchema = z.object({});
 
@@ -61,6 +72,10 @@ async function createSession(
 		return;
 	}
 
+	if(!req.body.vnc){
+		req.body.vnc = "legacy"
+	}
+
 	try {
 		const sessionID = req.body.sessionID;
 		let isValidSession: boolean;
@@ -81,10 +96,14 @@ async function createSession(
 		isValidSession = cache.has(sessionID);
 		if (isValidSession && browser) {
 			// log Error
-			res.log.error({
-				message: 'parallel session creation not allowed',
-				startTime: res.locals.generalInfo.startTime,
-			}, "session:createSession:36");
+			res.locals.httpInfo.status_code = 400;
+			res.log.info({
+				...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+				message: 'Session Already Exists',
+				sessionID: sessionID,
+				leaseTime: res.locals.cacheTimeout,
+				browser
+			}, "ENDPOINT_SUCCESS")
 
 			// cannot overwrite existing session
 			return UTILITY.EXPRESS.respond(res, 400, {
@@ -110,10 +129,13 @@ async function createSession(
 						req.body.config.viewport.height > 16384 ||
 						req.body.config.viewport.height < 962
 					) {
-						res.log.error({
+						res.locals.httpInfo.status_code = 400;
+						res.log.info({
+							...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
 							message: 'Invalid Viewport',
-							startTime: res.locals.generalInfo.startTime,
-						}, "session:createSession:69");
+							details:
+								'Invalid viewport must be between 601*962 and 1920*1080',
+						}, "ENDPOINT_ERROR")
 
 						return UTILITY.EXPRESS.respond(res, 400, {
 							code: 'INVALID_REQUEST',
@@ -137,10 +159,11 @@ async function createSession(
 				let country: Country;
 				if (req.body.useProxy) {
 					if (!req.body.proxyConfig) {
-						res.log.error({
+						res.locals.httpInfo.status_code = 400;
+						res.log.info({
+							...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
 							message: 'Missing proxyConfig',
-							startTime: res.locals.generalInfo.startTime,
-						}, "session:createSession:63");
+						}, "ENDPOINT_ERROR")
 
 						return UTILITY.EXPRESS.respond(res, 400, {
 							code: 'INVALID_REQUEST',
@@ -156,10 +179,11 @@ async function createSession(
 					if (country) {
 						network = req.body.proxyConfig.network;
 					} else {
-						res.log.error({
+						res.locals.httpInfo.status_code = 400;
+						res.log.info({
+							...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
 							message: 'Invalid Country Code',
-							startTime: res.locals.generalInfo.startTime,
-						}, "session:createSession:88");
+						}, "ENDPOINT_ERROR")
 
 						return UTILITY.EXPRESS.respond(res, 400, {
 							code: 'INVALID_REQUEST',
@@ -172,6 +196,9 @@ async function createSession(
 				// Browser Getter
 				sessionInfo = await getSessionInfo(
 					res.log,
+					{
+						...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+					},
 					req.body.clientID,
 					req.body.leaseTime || 10,
 					browserConfig.isDebug ? browserConfig.isDebug : false,
@@ -184,6 +211,21 @@ async function createSession(
 						callbackURL: req.body.callbackURL,
 						sessionUUID: req.body.sessionUUID,
 					},
+					{
+						numberOfCameras: req.body.numberOfCameras,
+						numberOfMicrophones: req.body.numberOfMicrophones,
+						numberOfSpeakers: req.body.numberOfSpeakers,
+						locale: req.body.locale,
+						language: req.body.language,
+						timezone: req.body.timezone,
+						platform: req.body.platform,
+						screen: req.body.config && req.body.config.viewport ? {
+							resolution: `${req.body.config.viewport.width}x${req.body.config.viewport.height}`,
+							dpi: `${req.body.config.viewport.dpi || "96"}`,
+							depth: `${req.body.config.viewport.depth || "24"}`,
+						} : undefined,
+					},
+					req.body.vnc,
 					null,
 					false,
 					network,
@@ -191,12 +233,14 @@ async function createSession(
 					req.body.useProxy,
 					req.body.sessionData ? req.body.sessionData : '',
 				);
-			} catch (err) {
+			} catch (error: unknown) {
 				// log Error
+				res.locals.httpInfo.status_code = 503;
 				res.log.error({
-					message: err.message,
-					stack: err.stack,
-				}, "session:createSession:119");
+					...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+					message: error instanceof Error ? error.message : "Unknown error",
+					stack: error instanceof Error ? error.stack : undefined,
+				}, "CREATE_SESSION_ERROR")
 
 				return UTILITY.EXPRESS.respond(res, 503, {
 					code: 'SERVICE_UNAVAILABLE',
@@ -223,22 +267,25 @@ async function createSession(
 			cache.set(sessionID, session, res.locals.cacheTimeout);
 
 			// log success
+			res.locals.httpInfo.status_code = 201;
 			res.log.info({
+				...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
 				message: 'Session Created Successfully',
 				sessionID: sessionID,
 				leaseTime: res.locals.cacheTimeout,
 				browserID: session.browserID,
-			}, "session:createSession:150");
+			}, "ENDPOINT_SUCCESS")
 
 			return UTILITY.EXPRESS.respond(res, 201, session);
 		}
-	} catch (err) {
+	} catch (error) {
 		// log error
+		res.locals.httpInfo.status_code = 500;
 		res.log.error({
-			message: err.message,
-			stack: err.stack,
-			startTime: res.locals.generalInfo.startTime,
-		}, "session:createSession:169");
+			...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+			message: error instanceof Error ? error.message : "Unknown error",
+			stack: error instanceof Error ? error.stack : undefined,
+		}, "ENDPOINT_ERROR")
 
 		return UTILITY.EXPRESS.respond(res, 500, {
 			code: 'INTERNAL_SERVER_ERROR',

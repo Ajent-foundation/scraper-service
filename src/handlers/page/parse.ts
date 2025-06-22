@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import NodeCache from 'node-cache'
 import {Browser, Page} from 'puppeteer'
 import { getCurrentPage } from '../../browser/pages';
+import { Logger } from 'pino';
 import { BrowserSession } from '../../apis/browsers-cmgr'
 import { BaseRequest } from '../../helpers/Base'
 import UTILITY from '../../helpers/utility'
@@ -38,25 +39,34 @@ export async function parseToJSON(req:Request<RequestQuery, {}, RequestBody, Req
 
     // Logic
     try{
-        const puppeteerBrowser: Browser = await connectToBrowser(session.url);
-		const pageObject: { page: Page; index: number } = await getCurrentPage(puppeteerBrowser, session.config);
+        const puppeteerBrowser: Browser = await connectToBrowser(
+			res.log,
+			res.locals.importantHeaders ? res.locals.importantHeaders : {},
+			session.url,
+			res.locals.sessionID
+		);
+		const pageObject: { page: Page; index: number } = await getCurrentPage(
+			res.log,
+			res.locals.importantHeaders ? res.locals.importantHeaders : {},
+			puppeteerBrowser, session.config);
         const page = pageObject.page
         
         // Run Extract 
         //TODO: add screenshots function 
         const parsedJSON = await extractJSON(page)
 
-        puppeteerBrowser.disconnect()
+        // puppeteerBrowser.disconnect()
         UTILITY.EXPRESS.respond(res, 200, {
             response: parsedJSON
         })
-    } catch(err){
+    } catch(error){
         // log Error
+        res.locals.httpInfo.status_code = 500
         res.log.error({
-            message: err.message, 
-            stack: err.stack,
-            startTime: res.locals.generalInfo.startTime,
-        }, "page:parseToJSON:64");
+			...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+			message: error instanceof Error ? error.message : "Unknown error",
+			stack: error instanceof Error ? error.stack : undefined,
+		}, "ENDPOINT_ERROR")
 
         UTILITY.EXPRESS.respond(res, 500, {
             code: "INTERNAL_SERVER_ERROR",

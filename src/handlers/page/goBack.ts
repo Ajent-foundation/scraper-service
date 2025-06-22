@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import NodeCache from 'node-cache';
 import { BrowserSession } from '../../apis/browsers-cmgr';
 import { BaseRequest } from '../../helpers/Base';
+import { Logger } from 'pino';
 import UTILITY from '../../helpers/utility';
 import { VIEW_PORT, connectToBrowser } from '../../browser';
 import {
@@ -47,8 +48,15 @@ async function goBack(
 
 	// LOGIC
 	try {
-		const puppeteerBrowser = await connectToBrowser(session.url);
+		const puppeteerBrowser = await connectToBrowser(
+			res.log,
+			res.locals.importantHeaders ? res.locals.importantHeaders : {},
+			session.url,
+			res.locals.sessionID
+		);
 		let { page, index } = await getCurrentPage(
+			res.log,
+			res.locals.importantHeaders ? res.locals.importantHeaders : {},
 			puppeteerBrowser,
 			session.config,
 		);
@@ -64,13 +72,13 @@ async function goBack(
 				window.prompt = (message, defaultValue) => defaultValue || ''; // Return the default value for prompt
 			});
 			
-			res.log.info('Going back to page');
 			await page.goBack()
-		} catch (e) {
+		} catch (error) {
 			res.log.error({
-				message: 'Failed to go back to page',
-				startTime: res.locals.generalInfo.startTime,
-			}, "page:goBack:54");
+				...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+				message: error instanceof Error ? error.message : "Unknown error",
+				stack: error instanceof Error ? error.stack : undefined,
+			}, "ENDPOINT_ERROR")
 		}
 
 		// Retirable Logic to ensure page is loaded fully
@@ -82,24 +90,21 @@ async function goBack(
 		while (retryAttempts > 0) {
 			try {
 				await waitTillNotBlankPage(page);
-				res.log.info(`page is not blank, START GOTO: ${0}`);
 
 				const startTime = new Date().getTime();
 				await awaitPageTillLoaded(
+					res.log,
+					res.locals.importantHeaders ? res.locals.importantHeaders : {},
 					puppeteerBrowser,
 					index,
 					10,
 					10000,
 					settings,
 				);
-				res.log.info(`TIME GOTO 1 : ${
-					(new Date().getTime() - startTime) / 1000
-				}`);
 
 				if (!req.body.stayOnPage) {
 					// Check if page changed to a new tab
 					const newPageCount = await getPageCount(puppeteerBrowser);
-					res.log.info(`new page count: ${newPageCount}`);
 
 					if (newPageCount > pageCount) {
 						// Update page count
@@ -107,6 +112,8 @@ async function goBack(
 						const currPageIndex = index + 1;
 						const newPage = (
 							await getPageAtIndex(
+								res.log,
+								res.locals.importantHeaders ? res.locals.importantHeaders : {},
 								puppeteerBrowser,
 								session.config,
 								currPageIndex
@@ -115,6 +122,8 @@ async function goBack(
 
 						await waitTillNotBlankPage(newPage);
 						await awaitPageTillLoaded(
+							res.log,
+							res.locals.importantHeaders ? res.locals.importantHeaders : {},
 							puppeteerBrowser,
 							currPageIndex,
 							150,
@@ -126,23 +135,28 @@ async function goBack(
 				}
 
 				break;
-			} catch (e) {
-				if (e.message.includes('Execution context was destroyed')) {
-					res.log.error({
-						message:
-							'Execution context was destroyed, retrying..',
-						startTime: res.locals.generalInfo.startTime,
-					}, "page:goBack:92");
+			} catch (error) {
+				if (error.message.includes('Execution context was destroyed')) {
+					res.log.warn({
+						...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+						message: 'Execution context was destroyed, retrying..',
+					}, "ENDPOINT_ERROR")
 					retryAttempts--;
 					continue;
+				} else {
+					res.log.error({
+						...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+						message: error instanceof Error ? error.message : "Unknown error",
+						stack: error instanceof Error ? error.stack : undefined,
+					}, "ENDPOINT_ERROR")
 				}
 
-				throw e;
+				throw error;
 			}
 		}
 
 		// log success
-		res.log.info('Page loaded successfully');
+		res.locals.httpInfo.status_code = 200;
 
 		// Get page image and scroller info
 		const devicePixelRatio = await page.evaluate(
@@ -157,9 +171,7 @@ async function goBack(
 			};
 		});
 
-		res.log.info('Screenshot successfully taken');
-
-		puppeteerBrowser.disconnect();
+		// puppeteerBrowser.disconnect();
 		UTILITY.EXPRESS.respond(res, 200, {
 			sessionID: session.sessionID,
 			page: {
@@ -173,13 +185,14 @@ async function goBack(
 				img: "",
 			},
 		});
-	} catch (err) {
+	} catch (error) {
 		// log Error
+		res.locals.httpInfo.status_code = 500;
 		res.log.error({
-			message: err.message,
-			stack: err.stack,
-			startTime: res.locals.generalInfo.startTime,
-		}, "page:goBack:119");
+			...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+			message: error instanceof Error ? error.message : "Unknown error",
+			stack: error instanceof Error ? error.stack : undefined,
+		}, "ENDPOINT_ERROR")
 
 		UTILITY.EXPRESS.respond(res, 500, {
 			code: 'INTERNAL_SERVER_ERROR',

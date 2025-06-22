@@ -1,4 +1,5 @@
 import { Page } from 'puppeteer';
+import { Logger } from 'pino';
 
 export interface IBody {
     x: number;
@@ -7,7 +8,8 @@ export interface IBody {
 
 export default async function execute(
     page:Page,
-    body:IBody
+    body:IBody,
+    log:Logger
 ) {
     await page.evaluate(
         (x, y) => {
@@ -17,5 +19,8 @@ export default async function execute(
         body.y,
     );
     
+
+    log.info("page", page)
+
     return {}
 }

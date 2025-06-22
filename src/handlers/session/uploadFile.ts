@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import NodeCache from 'node-cache';
+import { Logger } from 'pino';
 import { BrowserSession } from '../../apis/browsers-cmgr';
 import UTILITY from '../../helpers/utility';
 import { uploadFile } from '../../apis/node';
@@ -50,7 +51,14 @@ async function uploadFileToSession(
 			return UTILITY.EXPRESS.respond(
 				res,
 				200,
-				await uploadFile(res.log, baseUrl, req.body.base64File),
+				await uploadFile(
+					res.log,
+					{
+						...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+					},
+					baseUrl,
+					req.body.base64File,
+				),
 			);
 		} else {
 			// Session does not exist
@@ -59,13 +67,15 @@ async function uploadFileToSession(
 				message: 'Session not found',
 			});
 		}
-	} catch (err) {
+	} catch (error:unknown) {
 		// Log error
+		res.locals.httpInfo.status_code = 500;
 		res.log.error({
-			message: err.message,
-			stack: err.stack,
-			startTime: res.locals.generalInfo.startTime,
-		}, "session:uploadFileToSession:39");
+			...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+			message: error instanceof Error ? error.message : "Unknown error",
+			stack: error instanceof Error ? error.stack : undefined,
+		}, "ENDPOINT_ERROR")
+
 
 		return UTILITY.EXPRESS.respond(res, 500, {
 			code: 'INTERNAL_SERVER_ERROR',

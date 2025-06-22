@@ -26,6 +26,8 @@ import {
 	IsDialogOpen,
 	CloseDialog,
 	SelectFileFromDialog,
+	SetGeoLocationCommand,
+	SystemScreenshotV2,
 } from '../../browser/interface/types';
 import NodeCache from 'node-cache';
 import { BaseSession } from '../../apis/browsers-cmgr';
@@ -55,6 +57,8 @@ export enum Action {
 	ScrollAtPosition = 'ScrollAtPosition',
 	KeyPress = 'KeyPress',
 	SystemScreenshot = 'SystemScreenshot',
+	SystemScreenshotV2 = 'SystemScreenshotV2',
+	SetGeoLocation = 'SetGeoLocation',
 	// System actions (Browser-node)
 	CloseDialog = 'CloseDialog',
 	IsDialogOpen = 'IsDialogOpen',
@@ -97,7 +101,8 @@ export type Command =
 	| SelectFileFromDialog
 	| KeyPress
 	| SystemScreenshot
-
+	| SystemScreenshotV2
+	| SetGeoLocationCommand
 export const RequestParamsSchema = z.object({});
 
 export const RequestBodySchema = z.custom<BaseRequest>().and(
@@ -149,22 +154,20 @@ async function executeCommands(
 		}
 
 		await executeBrowserCommands(req, res, next);
-	} catch (err) {
-		console.log('Execute commands error:', err);
-
+	} catch (error) {
 		// log Error
+		res.locals.httpInfo.status_code = 500;
 		res.log.error({
-			message: err.message,
-			stack: err.stack,
-			startTime: res.locals.generalInfo.startTime,
-		}, "page:executeCommands:209");
+			...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+			message: error instanceof Error ? error.message : "Unknown error",
+			stack: error instanceof Error ? error.stack : undefined,
+		}, "ENDPOINT_ERROR")
 
 		UTILITY.EXPRESS.respond(res, 500, {
 			code: 'INTERNAL_SERVER_ERROR',
 			message: 'Internal Server Error',
 		});
 	}
-
 	// Move to next function
 	next();
 }

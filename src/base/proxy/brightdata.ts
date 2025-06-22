@@ -4,7 +4,7 @@ export type Network = 'residential' | 'datacenter' | 'isp' | 'isp-mexico'
 
 export type ProxyConfig = {
   network: Network
-  country: Country | undefined
+  country: Country
   os?: 'windows' | 'osx' | 'android'
   sessionRotateIntervalHours?: number
   dnsResolutionLocation?: 'local' | 'remote'
@@ -22,9 +22,6 @@ export function getProxyServerString() {
 
 // TODO - improve
 export function getBrightDataAuth(userID: string, config: ProxyConfig): string {
-  if(!config.country){
-    throw new Error("country undefined")
-  }
 
   let countryCode = config.country.a2Code.toUpperCase()
   
@@ -38,20 +35,20 @@ export function getBrightDataAuth(userID: string, config: ProxyConfig): string {
   let username:string, password:string
   switch (config.network) {
     case 'residential':
-      username = process.env.luminati_username as string
-      password = process.env.luminati_password as string
+      username = process.env.luminati_username
+      password = process.env.luminati_password
       break
     case 'isp':
-      username = process.env.luminati_username_isp_global as string
-      password = process.env.luminati_password_isp_global as string
+      username = process.env.luminati_username_isp_global
+      password = process.env.luminati_password_isp_global
       break
     case 'isp-mexico':
-      username = process.env.luminati_username_isp_mx as string
-      password = process.env.luminati_password_isp_mx as string
+      username = process.env.luminati_username_isp_mx
+      password = process.env.luminati_password_isp_mx
       break
     case 'datacenter':
-      username = process.env.luminati_username_dc as string
-      password = process.env.luminati_password_dc as string
+      username = process.env.luminati_username_dc
+      password = process.env.luminati_password_dc 
       break
     default:
       throw new Error('Network must be one of: residential, isp, datacenter')

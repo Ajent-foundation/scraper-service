@@ -2,13 +2,13 @@ import { Request, Response, NextFunction } from 'express';
 import NodeCache from 'node-cache';
 import { BrowserSession } from '../../apis/browsers-cmgr';
 import { BaseRequest } from '../../helpers/Base';
+import { Logger } from 'pino';
 import UTILITY from '../../helpers/utility';
 import { VIEW_PORT, connectToBrowser } from '../../browser';
 import {
 	getCurrentPage,
 	getPageCount,
 	getPageAtIndex,
-	takePageScreenshot,
 } from '../../browser/pages';
 import { awaitPageTillLoaded, waitTillNotBlankPage } from '../../browser/pages/awaitPage';
 import { z } from 'zod';
@@ -50,12 +50,19 @@ async function goToPage(
 
 	// LOGIC
 	try {
-		const puppeteerBrowser = await connectToBrowser(session.url);
+		const puppeteerBrowser = await connectToBrowser(
+			res.log,
+			res.locals.importantHeaders ? res.locals.importantHeaders : {},
+			session.url,
+			res.locals.sessionID
+		);
 		let { page, index } = await getCurrentPage(
+			res.log,
+			res.locals.importantHeaders ? res.locals.importantHeaders : {},
 			puppeteerBrowser,
 			session.config,
 		);
-		const viewPort = session.config.viewport || VIEW_PORT;
+		const viewPort = session.config?.viewport || VIEW_PORT;
 		const pageCount = await getPageCount(puppeteerBrowser);
 
 		// Go to page
@@ -67,17 +74,16 @@ async function goToPage(
 				window.prompt = (message, defaultValue) => defaultValue || ''; // Return the default value for prompt
 			});
 			
-			res.log.info('Going to page');
 			await page.goto(req.body.url, {
 				waitUntil: 'load',
 				timeout: 30000,
 			});
-			res.log.info('Page loaded successfully');
-		} catch (e) {
-			res.log.error({
-				message: 'Timeout Error while going to page',
-				startTime: res.locals.generalInfo.startTime,
-			}, "page:goToPage:54");
+		} catch (error) {
+			res.log.warn({
+				...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+				message: error instanceof Error ? error.message : "Unknown error",
+				stack: error instanceof Error ? error.stack : undefined,
+			}, "ERROR_GOING_TO_PAGE")
 		}
 
 		// Retirable Logic to ensure page is loaded fully
@@ -86,96 +92,85 @@ async function goToPage(
 			fullPage: false,
 		};
 		let retryAttempts = 3;
+		let hasPageChanged = false;
 		while (retryAttempts > 0) {
 			try {
 				await waitTillNotBlankPage(page);
-				res.log.info(`page is not blank, START GOTO: ${0}`);
 
 				const startTime = new Date().getTime();
 				await awaitPageTillLoaded(
+					res.log,
+					res.locals.importantHeaders ? res.locals.importantHeaders : {},
 					puppeteerBrowser,
 					index,
 					10,
 					10000,
 					settings,
 				);
-				res.log.info(`TIME GOTO 1 : ${
-					(new Date().getTime() - startTime) / 1000
-				}`);
 
 				if (!req.body.stayOnPage) {
 					// Check if page changed to a new tab
 					const newPageCount = await getPageCount(puppeteerBrowser);
-					res.log.info(`new page count: ${newPageCount}`);
 
 					if (newPageCount > pageCount) {
+						hasPageChanged = true;
 						// Update page count
-						const old = page;
-						const currPageIndex = index + 1;
+						const currPageIndex = newPageCount - 1;
 						const newPage = (
 							await getPageAtIndex(
+								res.log,
+								res.locals.importantHeaders ? res.locals.importantHeaders : {},
 								puppeteerBrowser,
 								session.config,
 								currPageIndex
 							)
 						).page;
+						page = newPage;
+						index = currPageIndex;
 
 						await waitTillNotBlankPage(newPage);
 						await awaitPageTillLoaded(
+							res.log,
+							res.locals.importantHeaders ? res.locals.importantHeaders : {},
 							puppeteerBrowser,
 							currPageIndex,
 							150,
 							10000,
 							settings,
 						);
-						await old.close();
+						await page.bringToFront();
 					}
 				}
 
 				break;
-			} catch (e) {
-				if (e.message.includes('Execution context was destroyed')) {
-					res.log.error({
-						message:
-							'Execution context was destroyed, retrying..',
-						startTime: res.locals.generalInfo.startTime,
-					}, "page:goToPage:92");
+			} catch (error) {
+				if (error.message.includes('Execution context was destroyed')) {
+					res.log.warn({
+						...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+						message: 'Execution context was destroyed, retrying..',
+					}, "ENDPOINT_ERROR")
+
 					retryAttempts--;
 					continue;
+				} else {
+					res.log.error({
+						...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+						message: error instanceof Error ? error.message : "Unknown error",
+						stack: error instanceof Error ? error.stack : undefined,
+					}, "ENDPOINT_ERROR")
 				}
 
-				throw e;
+				throw error;
 			}
 		}
 
 		// log success
-		res.log.info('Page loaded successfully');
+		res.locals.httpInfo.status_code = 200;
 
 		// Get page image and scroller info
 		const devicePixelRatio = await page.evaluate(
 			() => window.devicePixelRatio,
 		);
-
-		//let pageImg = ""
-		//for (let attempts=0; attempts<2; attempts++) {
-		//	logger.logCustom(`Attempting to take screen shot: ${attempts}`)
-		//	try {
-		//		pageImg = await takePageScreenshot(
-		//			page,
-		//			session.config,
-		//			req.body.fullPage,
-		//		);
-		//		logger.logCustom(`Screenshot taken successfully: ${attempts}`)
-		//		break
-		//	} catch (e) {
-		//		const newPage = await getCurrentPage(
-		//			puppeteerBrowser,
-		//			session.config,
-		//		);
-		//		page = newPage.page
-		//		index = newPage.index
-		//	}
-		//}
 
 		const scroller = await page.evaluate(() => {
 			return {
@@ -185,11 +180,10 @@ async function goToPage(
 			};
 		});
 
-		res.log.info('Screenshot successfully taken');
-
-		puppeteerBrowser.disconnect();
+		// puppeteerBrowser.disconnect();
 		UTILITY.EXPRESS.respond(res, 200, {
 			sessionID: session.sessionID,
+			hasPageChanged: hasPageChanged,
 			page: {
 				url: page.url(),
 				devicePixelRatio: devicePixelRatio,
@@ -201,13 +195,14 @@ async function goToPage(
 				img: "",
 			},
 		});
-	} catch (err) {
+	} catch (error) {
 		// log Error
+		res.locals.httpInfo.status_code = 500;
 		res.log.error({
-			message: err.message,
-			stack: err.stack,
-			startTime: res.locals.generalInfo.startTime,
-		}, "page:goToPage:119");
+			...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+			message: error instanceof Error ? error.message : "Unknown error",
+			stack: error instanceof Error ? error.stack : undefined,
+		}, "ENDPOINT_ERROR")
 
 		UTILITY.EXPRESS.respond(res, 500, {
 			code: 'INTERNAL_SERVER_ERROR',

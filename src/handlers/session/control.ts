@@ -1,13 +1,13 @@
 import { NextFunction, Request, Response } from 'express';
 import NodeCache from 'node-cache';
-import { Logger } from 'pino';
 import { BrowserSession } from '../../apis/browsers-cmgr';
 import UTILITY from '../../helpers/utility';
-import { getSessionData } from '../../apis/node';
 import { z } from 'zod';
+import axios from 'axios';
 
 export const RequestParamsSchema = z.object({
 	sessionID: z.string(),
+	clientId: z.string(),
 });
 
 export const RequestBodySchema = z.object({});
@@ -18,7 +18,7 @@ export type RequestParams = z.infer<typeof RequestParamsSchema>;
 export type RequestBody = z.infer<typeof RequestBodySchema>;
 export type RequestQuery = z.infer<typeof RequestQuerySchema>;
 
-async function getData(
+async function control(
 	req: Request<RequestParams, {}, RequestBody, RequestQuery>,
 	res: Response,
 	next: NextFunction,
@@ -41,26 +41,38 @@ async function getData(
 		const session: BrowserSession | undefined = cache.get(sessionID);
 
 		// check if session still exists
-		if (session) {
-			const firstColon = session.url.indexOf(':');
-            const baseUrl = session.url.substring(0, session.url.indexOf(':', firstColon + 1));
-
-			// Get session data
-			const data = await getSessionData(
-				res.log,
-				{
-					...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
-				},
-				baseUrl,
-			);
-			return UTILITY.EXPRESS.respond(res, 200, data);
-		} else {
-			// Session does not exist
+		if (!session) {
 			return UTILITY.EXPRESS.respond(res, 404, {
 				code: 'SESSION_NOT_FOUND',
 				message: 'Session not found',
 			});
 		}
+
+		// Proxy request to VNC port
+		const clientId = req.params.clientId;
+		const vncUrl = `http://localhost:${session.vncPort}/clients/${clientId}/control`;
+		
+		try {
+			const vncResponse = await axios.post(vncUrl, {}, {
+				timeout: 10000,
+				headers: {
+					'Content-Type': 'application/json'
+				}
+			});
+			
+			return UTILITY.EXPRESS.respond(res, vncResponse.status, vncResponse.data);
+		} catch (vncError) {
+			if (axios.isAxiosError(vncError)) {
+				const status = vncError.response?.status || 503;
+				const data = vncError.response?.data || {
+					code: 'VNC_SERVICE_UNAVAILABLE',
+					message: 'VNC service is not available'
+				};
+				return UTILITY.EXPRESS.respond(res, status, data);
+			}
+			throw vncError;
+		}
+
 	} catch (error) {
 		// Log error
 		res.locals.httpInfo.status_code = 500;
@@ -69,7 +81,7 @@ async function getData(
 			message: error instanceof Error ? error.message : "Unknown error",
 			stack: error instanceof Error ? error.stack : undefined,
 		}, "ENDPOINT_ERROR")
-
+		
 		return UTILITY.EXPRESS.respond(res, 500, {
 			code: 'INTERNAL_SERVER_ERROR',
 			message: 'Internal Server Error',
@@ -77,4 +89,4 @@ async function getData(
 	}
 }
 
-export default getData;
+export default control; 

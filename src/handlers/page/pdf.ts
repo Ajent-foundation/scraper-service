@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import NodeCache from 'node-cache';
+import { Logger } from 'pino';
 import { BrowserSession } from '../../apis/browsers-cmgr';
 import { BaseRequest } from '../../helpers/Base';
 import UTILITY from '../../helpers/utility';
@@ -39,8 +40,18 @@ async function getPDF(
 
 	// Logic
 	try {
-		const puppeteerBrowser: Browser = await connectToBrowser(session.url);
-		const { page } = await getCurrentPage(puppeteerBrowser, session.config);
+		const puppeteerBrowser: Browser = await connectToBrowser(
+			res.log,
+			res.locals.importantHeaders ? res.locals.importantHeaders : {},
+			session.url,
+			res.locals.sessionID
+		);
+		const { page } = await getCurrentPage(
+			res.log,
+			res.locals.importantHeaders ? res.locals.importantHeaders : {},
+			puppeteerBrowser,
+			session.config,
+		);
 
 		const pagePDF = await page.pdf({
 			format: 'A4',
@@ -49,17 +60,20 @@ async function getPDF(
 		// Send File Response
 		const base64PDF = pagePDF.toString('base64');
 
-		puppeteerBrowser.disconnect();
+		res.locals.httpInfo.status_code = 200;
+		// puppeteerBrowser.disconnect();
 		UTILITY.EXPRESS.respond(res, 200, {
 			page: base64PDF,
 		});
-	} catch (err) {
+	} catch (error) {
 		// log Error
+		res.locals.httpInfo.status_code = 500;
 		res.log.error({
-			message: err.message,
-			stack: err.stack,
-			startTime: res.locals.generalInfo.startTime,
-		}, "page:getPDF:57");
+			...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+			message: error instanceof Error ? error.message : "Unknown error",
+			stack: error instanceof Error ? error.stack : undefined,
+		}, "ENDPOINT_ERROR")
+
 
 		UTILITY.EXPRESS.respond(res, 500, {
 			code: 'INTERNAL_SERVER_ERROR',

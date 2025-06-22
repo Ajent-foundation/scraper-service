@@ -423,12 +423,39 @@ export function simplifyDOM(
             var text = this.text.toString();
 
             // Position of the element
-            let x = ( this.isIFrame ? this.bbox.x + this.iframePosition.x : this.bbox.x )
+           /*  let x = ( this.isIFrame ? this.bbox.x + this.iframePosition.x : this.bbox.x )
             let y = ( this.isIFrame ? this.bbox.y + this.iframePosition.y : this.bbox.y )
             if(this.scrollContainer){
                 // Adjust x,y relative to scrollbar position
                 x += this.scrollContainer.scrollLeft
                 y += this.scrollContainer.scrollTop
+            } */
+
+            let x = 0;
+            let y = 0;
+            try {
+
+                const rect = this.el.getBoundingClientRect();
+                x = rect.left;
+                y = rect.top;
+                
+                // If in an iframe
+                if (this.isIFrame) {
+                    const iframeRect = (this as any).iframe.getBoundingClientRect();
+                    x += iframeRect.left;
+                    y += iframeRect.top;
+                }
+
+            } catch(e){
+
+                x = ( this.isIFrame ? this.bbox.x + this.iframePosition.x : this.bbox.x )
+                y = ( this.isIFrame ? this.bbox.y + this.iframePosition.y : this.bbox.y )
+                if(this.scrollContainer){
+                    // Adjust x,y relative to scrollbar position
+                    x += this.scrollContainer.scrollLeft
+                    y += this.scrollContainer.scrollTop
+                }
+
             }
 
             let data = {
@@ -804,8 +831,16 @@ export function simplifyDOM(
     let capturedElms: HTMLElement[] = []
     let m : HTMLElement[] = []
     let p:any = []
+
+    let _i = 0;
     while (domNodes.length > 0) {
         let node: Node = domNodes.shift()
+
+        _i++;
+        if(_i > 100000){
+            console.log("BREAKING after MANY iterations");
+            break;
+        }
 
         // Process the node
         if (
@@ -1026,7 +1061,16 @@ export function simplifyDOM(
 
                     // Check for non-empty text nodes among child nodes
                     for (let i = 0; i < nodeElement.childNodes.length; i++) {
-                        if (nodeElement.childNodes[i].nodeType === Node.TEXT_NODE) {
+                        let isLabel = false;
+                        try{
+                            const childNode = nodeElement.childNodes[i] as HTMLElement;
+                            if(childNode.tagName && childNode.tagName.toLowerCase() === 'label') {
+                                isLabel = true;
+                            }
+                        } catch(e) {
+
+                        }
+                        if (nodeElement.childNodes[i].nodeType === Node.TEXT_NODE || isLabel) {
                             if (nodeElement.childNodes[i].textContent.trim() === "") continue;
                             else {
                                 hasTextNode = true;
@@ -1317,6 +1361,142 @@ export function simplifyDOM(
     capturedElms = capturedElms.concat(elementsToAddInTheEnd);
 
 
+
+
+
+
+
+
+
+
+
+
+
+    // go through all elements and group the ones that have the exact following properties:
+    // - same id (if it has an id)
+    // - same x,y,width,height (rounded to the nearest pixel)
+    // - same text (if it has text)
+    // - same image (if it has an image)
+    // - same link (if it has a link)
+    // - same class (if it has a class)
+    // - same tag name (if it has a tag name)
+
+    // for each group that has 3 or more elements, i want you to prepend their parent and parent's parent id and class (separated by dots) and id (separated by hash) to each of the elements
+
+
+
+    function roundRect(rect) {
+        return {
+            x: Math.round(rect.x),
+            y: Math.round(rect.y),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height)
+        };
+    }
+    
+    function getImageSrc(el) {
+        if (el.tagName.toLowerCase() === 'img') {
+            return el.src;
+        }
+        const bg = window.getComputedStyle(el).backgroundImage;
+        const match = bg.match(/url\("(.*?)"\)/);
+        return match ? match[1] : '';
+    }
+    
+    function getLinkHref(el) {
+        return el.closest('a')?.href || '';
+    }
+    
+    function getText(el) {
+        return el.textContent.trim();
+    }
+    
+    function getIdentifier(el) {
+        const rect = roundRect(el.getBoundingClientRect());
+        return JSON.stringify({
+            id: el.id || '',
+            // rect,
+            text: getText(el),
+            image: getImageSrc(el),
+            link: getLinkHref(el),
+            className: el.className || '',
+            tagName: el.tagName.toLowerCase()
+        });
+    }
+    
+    function getAncestryData(el) {
+        const parents = [];
+        let parent = el.parentElement;
+        for (let i = 0; i < 2; i++) {
+            if (!parent) {
+                parents.push({ id: '', className: '', tag: 'div' });
+                continue;
+            }
+            parents.push({
+                id: parent.id || parent.tagName.toLowerCase(),
+                className: parent.className?.replace(/\s+/g, '.') || parent.tagName.toLowerCase()
+            });
+            parent = parent.parentElement;
+        }
+        return parents.reverse(); // grandparent first
+    }
+      
+  function updateIdAndClass(el, ancestry) {
+    try{
+        const className = el.className || el.getAttribute('class') || '';
+        const childId = el.id || el.tagName.toLowerCase();
+        const childClass = className.replace(/\s+/g, '.') || el.tagName.toLowerCase();
+
+      // ID path: always include 3 segments
+      const idPath = [...ancestry.map(a => a.id || a.tag || 'div'), childId].join('_');
+      el.tasker_id = idPath;
+    //   el.setAttribute('tasker_id', idPath);
+
+      // Class path: always include 3 segments
+      const classPath = [...ancestry.map(a => a.className || a.tag || 'div'), childClass].join('_');
+      el.tasker_class = classPath;
+    //   el.setAttribute('tasker_class', classPath);
+    } catch(e){
+        console.log("error updating id and class", e)
+    }
+  }
+
+
+    try{
+    
+        // Main logic
+        const groups = {};
+        capturedElms.forEach(el => {
+            const key = getIdentifier(el);
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(el);
+        });
+
+        
+        Object.values(groups).forEach((group: HTMLElement[]) => {
+            if (group.length >= 2) {
+                group.forEach((el: HTMLElement) => {
+                    const ancestry = getAncestryData(el);
+                    updateIdAndClass(el, ancestry);
+                });
+                // console.log("group", group)
+            }
+        });
+
+    } catch(e){
+        console.log("error updating id and class", e)
+    }
+
+
+
+
+
+
+
+
+
+
+
     // Sort the segments by y position
     let segments = []
 
@@ -1376,12 +1556,25 @@ export function simplifyDOM(
                 parentScrollContainer
             ).serialize())
         }
+
+
+            // if the last added element has a tasker_id, then replace the id with the tasker_id
+            if ((capturedElms[i] as any).tasker_id) {
+                segments[segments.length - 1].id = (capturedElms[i] as any).tasker_id;
+            }
+            // if the last added element has a tasker_class, then replace the class with the tasker_class
+            if ((capturedElms[i] as any).tasker_class) {
+                segments[segments.length - 1].class = (capturedElms[i] as any).tasker_class;
+            }
         
     }
 
     console.log('segments', segments);
     console.log('scrollableInnerElements', scrollableInnerElements);
     if(newReturn){
+
+        console.log("NEW RETURN segments")
+
         let index = 0
         const scrollElms = []
         for (const scrollContainer of scrollableInnerElements) {

@@ -17,8 +17,8 @@ export async function preProcess(
 ) {
 	const cache: NodeCache = res.locals.cache;
 
-	let sessionID: string | undefined = undefined;
-	let session: BaseSession | undefined = undefined;
+	let sessionID: string;
+	let session: BaseSession;
 
 	// Has sessionID
 	let hasRunningSession: boolean = false;
@@ -35,7 +35,7 @@ export async function preProcess(
 	}
 
 	if (req.body.sessionID) {
-		sessionID = req.body.sessionID as string;
+		sessionID = req.body.sessionID;
 
 		// check if session still exists as a browser
 		const browser = cmgrState.browsers.find((b)=> b.sessionID === sessionID)
@@ -58,6 +58,9 @@ export async function preProcess(
 					type: "browser",
 					jobs: [],
 				}, res.locals.cacheTimeout)
+			} else {
+				// Update session cache
+				cache.set(sessionID, session, res.locals.cacheTimeout)
 			}
 
 			hasRunningSession = true;
@@ -72,18 +75,23 @@ export async function preProcess(
 		}
 	}
 
-	if (session && sessionID && hasRunningSession) {
+	if (hasRunningSession) {
 		try {
 			// Note do we need to refresh it ?
 			if (session.type === "browser") {
 				await getSessionInfo(
 					res.log,
+					{
+						...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+					},
 					undefined,
 					(session as BrowserSession).leaseTime,
 					undefined,
 					undefined,
 					sessionID,
 					{},
+					{},
+					"legacy",
 					(session as BrowserSession).browserID,
 					false,
 				);
@@ -134,8 +142,12 @@ export async function preProcess(
 
 	res.locals.cache.set(sessionID, session, res.locals.cacheTimeout);
 	res.log.info({
-		job:  `ID-${req.path}:${sessionID}:${jobID}`
-	}, "JOB_PROCESSING");
+		message: "Processing Job",
+		sessionID: sessionID,
+		session: session,
+		jobID: jobID,
+		...(res.locals.importantHeaders ? res.locals.importantHeaders : {})
+	}, "PROCESSING_JOB")
 
 	res.locals.sessionID = sessionID;
 	next();
@@ -144,11 +156,14 @@ export async function preProcess(
 export async function postProcess(req: Request, res: Response) {
 	const cache: NodeCache = res.locals.cache;
 
-	const session: BaseSession | undefined = cache.get(res.locals.sessionID);
+	const session: BaseSession = cache.get(res.locals.sessionID);
 	if (session) {
 		res.log.info({
-			job:  `ID-${req.path}:${res.locals.sessionID}:${res.locals.jobID}`
-		}, "JOB_COMPLETED");
+			message: "Job Completed",
+			sessionID: res.locals.sessionID,
+			jobID: res.locals.jobID,
+			...(res.locals.importantHeaders ? res.locals.importantHeaders : {})
+		}, "JOB_COMPLETED")
 
 		// Find And remove Job
 		let jobFound = false;
@@ -162,12 +177,18 @@ export async function postProcess(req: Request, res: Response) {
 
 		if (jobFound) {
 			res.log.info({
-				job:  `ID-${req.path}:${res.locals.sessionID}:${res.locals.jobID}`
-			}, "JOB_REMOVED");	
+				message: "Job Removed",
+				sessionID: res.locals.sessionID,
+				jobID: res.locals.jobID,
+				...(res.locals.importantHeaders ? res.locals.importantHeaders : {})
+			}, "JOB_REMOVED")
 		} else {
-			res.log.error({
-				job:  `ID-${req.path}:${res.locals.sessionID}:${res.locals.jobID}`
-			}, "JOB_NOT_FOUND");
+			res.log.warn({
+				message: "Job Not Found",
+				sessionID: res.locals.sessionID,
+				jobID: res.locals.jobID,
+				...(res.locals.importantHeaders ? res.locals.importantHeaders : {})
+			}, "JOB_NOT_FOUND")
 		}
 
 		// Update Session

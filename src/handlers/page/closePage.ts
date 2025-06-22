@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import NodeCache from 'node-cache';
 import { BrowserSession } from '../../apis/browsers-cmgr';
 import { BaseRequest } from '../../helpers/Base';
+import { Logger } from 'pino';
 import UTILITY from '../../helpers/utility';
 import { Browser } from 'puppeteer';
 import { connectToBrowser } from "../../browser"
@@ -42,7 +43,12 @@ async function closePage(
 
 	// LOGIC
 	try {
-		const puppeteerBrowser:Browser = await connectToBrowser(session.url)
+		const puppeteerBrowser:Browser = await connectToBrowser(
+			res.log,
+			res.locals.importantHeaders ? res.locals.importantHeaders : {},
+			session.url,
+			res.locals.sessionID
+		);
 
 		// close page
 		const pages = await puppeteerBrowser.pages();
@@ -64,15 +70,17 @@ async function closePage(
 		const page = pages[req.body.index];
 		await page.close();
 
-		puppeteerBrowser.disconnect();
+		res.locals.httpInfo.status_code = 200;
+		// puppeteerBrowser.disconnect();
 		UTILITY.EXPRESS.respond(res, 200, {});
-	} catch (err) {
+	} catch (error) {
 		// log Error
+		res.locals.httpInfo.status_code = 500;
 		res.log.error({
-			message: err.message,
-			stack: err.stack,
-			startTime: res.locals.generalInfo.startTime,
-		}, "page:closePage:90");
+			...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+			message: error instanceof Error ? error.message : "Unknown error",
+			stack: error instanceof Error ? error.stack : undefined,
+		}, "ENDPOINT_ERROR")
 
 		UTILITY.EXPRESS.respond(res, 500, {
 			code: 'INTERNAL_SERVER_ERROR',

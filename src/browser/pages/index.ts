@@ -3,6 +3,7 @@ import { BrowserConfig } from '../../apis/browsers-cmgr';
 import { getBrowserSettings, VIEW_PORT } from '../';
 import { attachDebuggers } from '../debug';
 import sharp from 'sharp';
+import { Logger } from 'pino';
 
 const ATTEMPT_DELAY = 500;
 const MAX_ATTEMPTS = 3;
@@ -28,56 +29,83 @@ export async function getPageCount(browser: Browser): Promise<number> {
 }
 
 export async function getCurrentPage(
+	logger: Logger,
+	headers: Record<string, string>,
 	browser: Browser,
 	config: BrowserConfig | undefined,
 ): Promise<{ page: Page; index: number; pageCount: number }> {
 	let pages: Page[];
+	let currIndex = 0;
+	let isSuccessful = false;
 	for (let i = 0; i < MAX_ATTEMPTS; i++) {
 		try {
 			pages = await browser.pages();
-			console.log("Connected to browser at attempt", i)
+			logger.info({
+				pages: pages.length,
+				message: "GET_CURRENT_PAGE_SUCCESS"
+			}, "GET_CURRENT_PAGE_SUCCESS")
+			currIndex = 0
+
+			for (const page of pages) {
+				const isFocused = await page.evaluate(() => document.hasFocus());
+				if (isFocused) {
+					break;
+				}
+		
+				currIndex++;
+			}
+
+			if(!pages[currIndex]){
+				logger.warn({
+					currIndex: currIndex,
+					pages: pages.length,
+					message: "NO_PAGE_FOUND"
+				}, "NO_PAGE_FOUND")
+				throw new Error("No page found")
+			}
+
+			if (config) {
+				const settings = await getBrowserSettings(config);
+	
+				// Attempt to access the page and perform a simple operation to check its validity
+				await pages[currIndex].setViewport(
+					settings && settings.viewport ? settings.viewport : VIEW_PORT,
+				);
+			}
+
+			isSuccessful = true;
 			break;
-		} catch (e) {
+		} catch (error) {
 			if (i == MAX_ATTEMPTS - 1) {
-				throw e;
+				if(pages.length === 0 ) {
+					throw error
+				} else if (currIndex >= pages.length) {
+					currIndex = pages.length - 1;
+				} 
+
+				logger.warn({
+					...headers,
+					currIndex: currIndex,
+					pageCount: pages.length,
+					message: error instanceof Error ? error.message : "Unknown error",
+					stack: error instanceof Error ? error.stack : undefined,
+				}, "GET_CURRENT_PAGE_ERROR")
+				break;
 			}
 			await new Promise((resolve) => setTimeout(resolve, ATTEMPT_DELAY));
 		}
 	}
 
-	let currIndex = 0;
-	for (const page of pages) {
-		const isFocused = await page.evaluate(() => document.hasFocus());
-		if (isFocused) {
-			break;
-		}
-
-		currIndex++;
-	}
-
-	// Apply settings to the page
-	try {
-		if (config) {
-			const settings = await getBrowserSettings(config);
-
-			// Attempt to access the page and perform a simple operation to check its validity
-			console.log("Setting viewport for page", currIndex)
-			await pages[currIndex].setViewport(
-				settings ? settings.viewport : VIEW_PORT,
-			);
-			console.log("Set viewport for page", currIndex)
-		}
-	} catch (error) {
-	}
-
 	if (config && config.isDebug) {
-		await attachDebuggers(pages[currIndex]);
+		await attachDebuggers(logger, headers, pages[currIndex]);
 	}
 
 	return { page: pages[currIndex], index: currIndex, pageCount: pages.length };
 }
 
 export async function getPageAtIndex(
+	logger: Logger,
+	headers: Record<string, string>,
 	browser: Browser,
 	config: BrowserConfig | undefined,
 	atIndex: number,
@@ -110,16 +138,23 @@ export async function getPageAtIndex(
 			);
 		}
 	} catch (error) {
+		logger.error({
+			...headers,
+			message: error instanceof Error ? error.message : "Unknown error",
+			stack: error instanceof Error ? error.stack : undefined,
+		}, "ENDPOINT_ERROR")
 	}
 
 	if (config && config.isDebug) {
-		await attachDebuggers(pages[atIndex]);
+		await attachDebuggers(logger, headers, pages[atIndex]);
 	}
 
 	return { page: pages[atIndex], index: atIndex };
 }
 
 export async function takePageScreenshot(
+	logger: Logger,
+	headers: Record<string, string>,
 	page: Page,
 	config: BrowserConfig,
 	fullPage: boolean,
@@ -130,12 +165,14 @@ export async function takePageScreenshot(
 	let factor = 0;
 	let attempts = 0;
 	let base64Image: string | null = null;
-
+	
 	console.log('Taking screenshot');
 	while (attempts < MAX_ATTEMPTS) {
 		try {
 			let timeoutOccurred = false;
 			console.log(`Capturing screenshot at attempt: ${attempts}`);
+
+			let originalBodyOverflow = await page.evaluate(() => document.body.style.overflow);
 
 			if (fullPage) {
 				const pageHeight = await page.evaluate(
@@ -153,6 +190,7 @@ export async function takePageScreenshot(
 							encoding: 'base64',
 							type,
 							fullPage: true,
+							quality: 50,
 						}),
 						timeout(SCREENSHOT_TIMEOUT * (1 + factor)).then(() => {
 							timeoutOccurred = true;
@@ -186,6 +224,7 @@ export async function takePageScreenshot(
 								width: viewport.width,
 								height: clipHeight / deviceScaleFactor,
 							},
+							quality: 50,
 						});
 
 						screenshotPromises.push(screenshotPromise);
@@ -258,6 +297,7 @@ export async function takePageScreenshot(
 						encoding: 'base64',
 						type,
 						fullPage: false,
+						quality: 50,
 					}),
 					timeout(SCREENSHOT_TIMEOUT * (1 + factor)).then(() => {
 						timeoutOccurred = true;
@@ -272,13 +312,21 @@ export async function takePageScreenshot(
 			console.log(`Captured screenshot at attempt: ${attempts}`);
 
 			// Fix the issue with the scroll bar being hidden after taking the screenshot
-			await page.evaluate(() => {
+			await page.evaluate(async (originalBodyOverflow) => {
 				document.body.style.overflow = 'auto';
-			});
+				// add 100ms delay
+				await new Promise(resolve => setTimeout(resolve, 100));
+				document.body.style.overflow = originalBodyOverflow;
+			}, originalBodyOverflow);
 
 			break;
-		} catch (e) {
+		} catch (error) {
 			factor += 0;
+			logger.error({
+				...headers,
+				message: error instanceof Error ? error.message : "Unknown error",
+				stack: error instanceof Error ? error.stack : undefined,
+			}, "ENDPOINT_ERROR")
 		}
 
 		attempts++;
@@ -305,5 +353,6 @@ export async function customScreenshot(
 			width: width,
 			height: height,
 		},
+		quality: 50,
 	});
 }

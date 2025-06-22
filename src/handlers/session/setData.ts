@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import NodeCache from 'node-cache';
+import { Logger } from 'pino';
 import { BrowserSession } from '../../apis/browsers-cmgr';
 import UTILITY from '../../helpers/utility';
 import { setSessionData, BrowserSessionData } from '../../apis/node';
@@ -47,7 +48,14 @@ async function setData(
             const baseUrl = session.url.substring(0, session.url.indexOf(':', firstColon + 1));
 
 			// Get session data
-			await setSessionData(res.log, baseUrl, req.body.data);
+			await setSessionData(
+				res.log,
+				{
+					...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+				},
+				baseUrl,
+				req.body.data,
+			);
 			return UTILITY.EXPRESS.respond(res, 200, {});
 		} else {
 			// Session does not exist
@@ -56,13 +64,15 @@ async function setData(
 				message: 'Session not found',
 			});
 		}
-	} catch (err) {
+	} catch (error) {
 		// Log error
+		res.locals.httpInfo.status_code = 500;
 		res.log.error({
-			message: err.message,
-			stack: err.stack,
-			startTime: res.locals.generalInfo.startTime,
-		}, "session:setData:39");	
+			...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+			message: error instanceof Error ? error.message : "Unknown error",
+			stack: error instanceof Error ? error.stack : undefined,
+		}, "ENDPOINT_ERROR")
+
 		return UTILITY.EXPRESS.respond(res, 500, {
 			code: 'INTERNAL_SERVER_ERROR',
 			message: 'Internal Server Error',

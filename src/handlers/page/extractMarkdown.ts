@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import NodeCache from 'node-cache'
 import {Browser, Page} from 'puppeteer'
 import { getCurrentPage } from '../../browser/pages';
+import { Logger } from 'pino';
 import { BrowserSession } from '../../apis/browsers-cmgr'
 import { BaseRequest } from '../../helpers/Base'
 import UTILITY from '../../helpers/utility'
@@ -42,8 +43,13 @@ export async function extractMarkdown(
 
     // Logic
     try{
-        const puppeteerBrowser: Browser = await connectToBrowser(session.url);
-		const pageObject: { page: Page; index: number } = await getCurrentPage(puppeteerBrowser, session.config);
+        const puppeteerBrowser: Browser = await connectToBrowser(
+			res.log,
+			res.locals.importantHeaders ? res.locals.importantHeaders : {},
+			session.url,
+			res.locals.sessionID
+		);
+		const pageObject: { page: Page; index: number } = await getCurrentPage(res.log, res.locals.importantHeaders ? res.locals.importantHeaders : {}, puppeteerBrowser, session.config);
         const page = pageObject.page
 
         const html = await page.content();
@@ -61,30 +67,41 @@ export async function extractMarkdown(
             });
             const article = reader.parse();
 
-            if (!article || !article.content) {
+            if (article && article.content) {
+                // Use Turndown to convert HTML to Markdown
+                const turndownService = new TurndownService();
+                markdown = turndownService.turndown(article.content);
+            } else {
+                res.log.error({
+                    ...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+                    message: "Article or article content not found",
+                    article,
+                    stack: undefined,
+                }, "MARKDOWN_ERROR")
+
+                // TODO - parse markdown in a different way
                 throw new Error('Failed to parse the article content');
             }
-
-            // Use Turndown to convert HTML to Markdown
-            const turndownService = new TurndownService();
-            markdown = turndownService.turndown(article.content);
-        } catch(err){
+        } catch(error){
             res.log.error({
-                message: err.message, 
-                stack: err.stack
-            }, "page:extractMarkdown:57");
+                ...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+                message: error instanceof Error ? error.message : "Unknown error",
+                stack: error instanceof Error ? error.stack : undefined,
+            }, "ENDPOINT_ERROR")
         }
 
-        puppeteerBrowser.disconnect()
+        // puppeteerBrowser.disconnect()
         UTILITY.EXPRESS.respond(res, 200, {
             page: markdown || "EMPTY"
         })
-    } catch(err){
+    } catch(error){
         // log Error
+        res.locals.httpInfo.status_code = 500
         res.log.error({
-            message: err.message, 
-            stack: err.stack
-        }, "page:extractMarkdown:47");
+            ...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+            message: error instanceof Error ? error.message : "Unknown error",
+            stack: error instanceof Error ? error.stack : undefined,
+        }, "ENDPOINT_ERROR")
 
         UTILITY.EXPRESS.respond(res, 500, {
             code: "INTERNAL_SERVER_ERROR",

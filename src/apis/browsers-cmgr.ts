@@ -1,11 +1,11 @@
 import axios, { AxiosResponse, isAxiosError } from 'axios';
+import { Logger } from 'pino';
 import {
 	getProxyServerString,
 	getBrightDataAuth,
 } from '../base/proxy/brightdata';
 import { Network } from '../base/proxy/brightdata';
 import { TheGlobe, Country } from '../base/global/index';
-import { Logger } from 'pino';
 
 export type Job = {
 	jobID: string;
@@ -15,6 +15,8 @@ export type Job = {
 export type BrowserViewPort = {
 	width: number;
 	height: number;
+	dpi?: number;
+	depth?: number;
 };
 
 export type BrowserConfig = {
@@ -86,6 +88,7 @@ export async function freeUpSession(browserID: string) {
 
 export async function getSessionInfo(
 	logger: Logger,
+	headers: Record<string, string>,
 	clientID: string | undefined,
 	leaseTime: number,
 	isDebug: boolean | undefined,
@@ -98,17 +101,22 @@ export async function getSessionInfo(
 		callbackURL?: string;
 		sessionUUID?: string;
 	},
+	extraConfigs: Record<string, unknown>,
+	vnc: "legacy" | "new" = "legacy",
 	browserID?: string,
 	getNewBrowserIfNoResume: boolean = false,
 	network: Network = 'residential',
-	country: Country | undefined = TheGlobe.getCountryByCode('US'),
+	country: Country = TheGlobe.getCountryByCode('US'),
 	useProxy: boolean = false,
 	sessionData: string = '',
 	isExtending: boolean = false,
 ): Promise<SessionInfo> {
-	let payload: Record<string, unknown> = {
+	let payload = {
 		sessionID: userID,
 		leaseTime: leaseTime,
+		vncMode: 'rw',
+		vncVersion: vnc,
+		...extraConfigs
 	};
 
 	if (browserID) {
@@ -166,7 +174,7 @@ export async function getSessionInfo(
 
 	const attemptsNum = 10;
 	let currentAttemptNum = 0;
-	let resp: AxiosResponse<any> | null = null;
+	let resp: AxiosResponse<any> = null;
 	while (currentAttemptNum < attemptsNum) {
 		try {
 			resp = await axios.post(
@@ -179,7 +187,7 @@ export async function getSessionInfo(
 				},
 			);
 
-			if (!resp || resp.data.success) {
+			if (resp.data.success) {
 				break;
 			} else {
 				const logCtx = {
@@ -195,7 +203,6 @@ export async function getSessionInfo(
 				} else {
 					logCtx.msg = 'Failed to get an existing browser for a user';
 				}
-				if(logger) logger.error(logCtx, "browsers-cmgr:getSessionInfo:198");
 
 				// handle the error, based on its type
 				switch (resp.data.error?.type) {
@@ -233,7 +240,13 @@ export async function getSessionInfo(
 			};
 
 			if (resp) logCtx['response'] = resp.data;
-			if(logger) logger.error(logCtx, "browsers-cmgr:getSessionInfo:237");
+			logger.error({
+				...headers,
+				message: error instanceof Error ? error.message : "Unknown error",
+				stack: error instanceof Error ? error.stack : undefined,
+				data: error.response?.data,
+				...logCtx
+			}, "GET_SESSION_INFO_ERROR_1")
 		}
 
 		await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -249,7 +262,12 @@ export async function getSessionInfo(
 			currentAttemptNum,
 			attemptsNum,
 		};
-		if(logger) logger.error(logCtx, "browsers-cmgr:getSessionInfo:252");
+
+		logger.error({
+			...headers,
+			data: resp?.data,
+			...logCtx
+		}, "GET_SESSION_INFO_ERROR_2")
 
 		return Promise.reject(GetStealthiumErrors.MULTI_ATTEMPTS_ERROR);
 	}
@@ -262,7 +280,10 @@ export async function getSessionInfo(
 		currentAttemptNum,
 	};
 
-	if(logger) logger.info(logCtx, "browsers-cmgr:getSessionInfo:265");
+	logger.info({
+		...headers,
+		...logCtx
+	}, "GET_SESSION_INFO_SUCCESS")
 
 	return Promise.resolve({
 		sessionID: userID,

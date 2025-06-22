@@ -2,6 +2,7 @@
 import { Browser, Page, ScreenshotOptions } from 'puppeteer';
 import sharp from 'sharp';
 import { getCurrentPage, getPageAtIndex } from '../';
+import { Logger } from 'pino';
 const pixelmatch = require('pixelmatch');
 const PNG = require('pngjs').PNG;
 
@@ -25,7 +26,7 @@ const createBlankImageBuffer = () => {
 };
 
 async function captureAndResizeScreenshot(page: Page, settings: ScreenshotOptions, factor: number = 0, canFail = true) {
-	console.time('Screenshot performance')
+	console.log("captureAndResizeScreenshot")
 	let timeoutOccurred = false;
 	const screenshotBuffer = await Promise.race([
 		page.screenshot({
@@ -38,8 +39,8 @@ async function captureAndResizeScreenshot(page: Page, settings: ScreenshotOption
 			return createBlankImageBuffer();
 		}),
 	]);
-	console.timeEnd('Screenshot performance')
 
+	console.log("After aptureAndResizeScreenshot")
 	if (timeoutOccurred) {
 		console.log('Screenshot timed out');
 		if (!canFail) {
@@ -47,21 +48,46 @@ async function captureAndResizeScreenshot(page: Page, settings: ScreenshotOption
 		}
 	}
 
-	console.time('Sharp library performance')
 	const finalBuffer = screenshotBuffer
 
-	const resizedBuffer = await sharp(finalBuffer)
-		.metadata()
-		.then(metadata => {
-			const width = Math.round(metadata.width * (1 - (RESIZE_PERCENTAGE / 100)));
-			const height = Math.round(metadata.height * (1 - (RESIZE_PERCENTAGE / 100)));
+	let resizedBuffer;
+	let attempts = 0;
+	const maxAttempts = 3;
+	const sharpTimeout = 5000; // 5 seconds
 
-			return sharp(screenshotBuffer)
-				.resize(width, height)
-				.png()
-				.toBuffer();
-		});
-	console.timeEnd('Sharp library performance')
+	console.log("Before sharp resize")
+	while (attempts < maxAttempts) {
+		try {
+			resizedBuffer = await Promise.race([
+				sharp(finalBuffer)
+					.metadata()
+					.then(metadata => {
+						const width = Math.round(metadata.width * (1 - (RESIZE_PERCENTAGE / 100)));
+						const height = Math.round(metadata.height * (1 - (RESIZE_PERCENTAGE / 100)));
+
+						return sharp(screenshotBuffer)
+							.resize(width, height)
+							.png()
+							.toBuffer();
+					}),
+				timeout(sharpTimeout).then(() => {
+					throw new Error('Sharp resize operation timed out');
+				})
+			]);
+			break; // Success, exit retry loop
+		} catch (error) {
+			attempts++;
+			console.log(`Sharp resize attempt ${attempts} failed:`, error.message);
+			
+			if (attempts >= maxAttempts) {
+				throw new Error(`Sharp resize failed after ${maxAttempts} attempts: ${error.message}`);
+			}
+			
+			// Short delay before retry
+			await timeout(100);
+		}
+	}
+	console.log("After sharp resize")
 	return resizedBuffer;
 }
 
@@ -145,6 +171,8 @@ const compareSections = async (
 };
 
 export async function awaitPageTillLoaded(
+	logger: Logger,
+	headers: Record<string, string>,
 	browser: Browser,
 	pageIndex: number,
 	pullDuration = 100,
@@ -160,7 +188,13 @@ export async function awaitPageTillLoaded(
 	for (let i = 0; i < attempts; i++) {
 		try {
 			settings = { encoding: 'binary', fullPage: false };
-			const browserTab = await getPageAtIndex(browser, null, pageIndex);
+			const browserTab = await getPageAtIndex(
+				logger,
+				headers,
+				browser, 
+				null, 
+				pageIndex
+			);
 
 			page = browserTab.page;
 			currPageIndex = browserTab.index;
@@ -236,8 +270,13 @@ export async function awaitPageTillLoaded(
 				console.timeEnd('WHITE PIXEL COUNT LOOP - ITERATION');
 				if (perWhite > tolerance && attemptsBeforeBreak > 0) {
 					await new Promise((r) => setTimeout(r, 1000));
-					page = (await getPageAtIndex(browser, null, currPageIndex))
-						.page;
+					page = (await getPageAtIndex(
+						logger,
+						headers,
+						browser,
+						null,
+						currPageIndex,
+					)).page;
 
 					continue;
 				} else break;
@@ -543,7 +582,12 @@ export async function awaitPageTillLoaded(
 
 
 						console.log('ERROR WITH LOADING PAGE, RESETTING PAGE');
-						const newPage = await getCurrentPage(browser, null);
+						const newPage = await getCurrentPage(
+							logger,
+							headers,
+							browser,
+							null,
+						);
 
 						currPageIndex = newPage.index;
 						page = newPage.page;
@@ -606,6 +650,8 @@ export async function waitTillNotBlankPage(page: Page, timeout = 5000) {
 }
 
 export async function awaitPageLegacy(
+	logger: Logger,
+	headers: Record<string, string>,
 	browser: Browser,
 	pullDuration = 100,
 	timeout = 10000,
@@ -626,7 +672,12 @@ export async function awaitPageLegacy(
 
 			console.log('awaitPage 0');
 
-			let { page, index } = await getCurrentPage(browser, null);
+			let { page, index } = await getCurrentPage(
+				logger,
+				headers,
+				browser,
+				null,
+			);
 			let currPageIndex = index;
 
 			// InitializeFirstImage
@@ -731,7 +782,13 @@ export async function awaitPageLegacy(
 
 				if (perWhite > tolerance && attemptsBeforeBreak > 0) {
 					await new Promise((r) => setTimeout(r, 1000));
-					page = (await getPageAtIndex(browser, null, currPageIndex))
+					page = (await getPageAtIndex(
+						logger,
+						headers,
+						browser, 
+						null, 
+						currPageIndex)
+					)
 						.page;
 
 					continue;
@@ -1023,7 +1080,12 @@ export async function awaitPageLegacy(
 						// to prevent error: "Execution context was destroyed, most likely because of a navigation."
 
 						console.log('ERROR WITH LOADING PAGE, RESETTING PAGE');
-						const newPage = await getCurrentPage(browser, null);
+						const newPage = await getCurrentPage(
+							logger,
+							headers,
+							browser,
+							null,
+						);
 
 						currPageIndex = newPage.index;
 						page = newPage.page;

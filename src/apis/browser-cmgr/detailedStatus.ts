@@ -43,6 +43,23 @@ export interface IDetailedStatusResponse {
 }
 
 export async function detailedStatus(): Promise<IDetailedStatusResponse> {
-    const response = await axios.get(`${process.env.BROWSER_POC_SERVICE}/detailedStatus`)
-    return response.data
+    let attempts = 0;
+    const maxAttempts = 3;
+    const delayMs = 1000;
+
+    while (attempts < maxAttempts) {
+        try {
+            const response = await axios.get(`${process.env.BROWSER_POC_SERVICE}/detailedStatus`);
+            return response.data;
+        } catch (error) {
+            attempts++;
+            if (attempts === maxAttempts) {
+                throw error;
+            }
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+    }
+
+    // TypeScript requires a return here even though it's unreachable
+    throw new Error('Failed to get detailed status after max attempts');
 }

@@ -17,5 +17,18 @@ export async function logger(req: Request, res: Response, next: NextFunction) {
 		startTime: startTime,
 	};
 
+	res.locals.importantHeaders = {
+		...Object.entries(req.headers)
+			.filter(([key]) => key.toLowerCase().startsWith('tasker-'))
+			.reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {})
+	}
+	
+	res.log.info({
+		message: 'Request received',
+		method: req.method,
+		url: req.url,
+		startTime: startTime,
+		...res.locals.importantHeaders
+	}, "NEW_API_REQUEST")
 	next();
 }

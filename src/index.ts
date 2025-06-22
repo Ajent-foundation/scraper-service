@@ -28,7 +28,11 @@ export type TConfig = {
     BROWSER_POC_SERVICE?: string
 }
 
-export async function main(deployment: string, config: TConfig, logPath?: string) {
+export async function main(
+    deployment: string, 
+    config: TConfig, 
+    logPath?: string
+) {
     process.env.SERVICE_NAME = "scraper-service-ts"
     process.env.DEPLOYMENT = deployment
     process.env.BROWSER_POC_SERVICE = config.BROWSER_POC_SERVICE || "http://127.0.0.1:8200"
@@ -135,7 +139,19 @@ export async function main(deployment: string, config: TConfig, logPath?: string
         }
 
         try {
-            const sessionID = req.url && req.url.replace('/ws/', '').replace('/vnc/', '')
+            // Parse URL to extract sessionID and query parameters
+            const url = new URL(req.url, 'http://localhost')
+            const sessionID = url.pathname.replace('/ws/', '').replace('/vnc/', '')
+            const queryString = url.search
+
+            // Log url
+            Logger.info({
+                message: "WS/VNC URL",
+                url: req.url,
+                sessionID,
+                queryString
+            }, "WS/VNC_URL")
+
             // check if sessionId is in cache
             const browser = cmgrState.browsers.find((b)=> b.sessionID === sessionID)
             if(!browser || browser.leaseTime === -1) {
@@ -145,12 +161,12 @@ export async function main(deployment: string, config: TConfig, logPath?: string
 
             // Handle WebSocket connections for browser debugging
             if (req.url && req.url.startsWith('/ws/')) {
-                const targetUrl = `ws://${browser.labels.ip}:${browser.ports.browser}/devtools/browser/${browser.labels.wsPath}`
+                const targetUrl = `ws://${browser.labels.ip}:${browser.ports.browser}/devtools/browser/${browser.labels.wsPath}${queryString}`
                 Logger.info({
                     message: "Proxying WS connection",
                     sessionID,
                     targetUrl
-                }, "WS_PROXY_CONNECTION")
+                }, "PROXING_WS_CONNECTION")
 
                 wsProxy.ws(req, socket, head, {
                     target: targetUrl,
@@ -161,16 +177,23 @@ export async function main(deployment: string, config: TConfig, logPath?: string
             // Handle VNC WebSocket connections
             else if (req.url && req.url.startsWith('/vnc/')) {
                 const targetUrl = `ws://${browser.labels.ip}:${browser.ports.vnc}`
+                
+                // Modify the request URL to just be the root path with query params
+                req.url = `/${queryString}`;
+                
                 Logger.info({
                     message: "Proxying VNC connection",
                     sessionID,
-                    targetUrl
-                }, "VNC_PROXY_CONNECTION")
+                    targetUrl,
+                    originalUrl: `/vnc/${sessionID}${queryString}`,
+                    modifiedReqUrl: req.url
+                }, "PROXING_VNC_CONNECTION")
 
                 vncProxy.ws(req, socket, head, {
                     target: targetUrl,
                     ws: true,
                     secure: false,
+                    changeOrigin: true
                 })
             } else {
                 socket.destroy()
@@ -184,7 +207,10 @@ export async function main(deployment: string, config: TConfig, logPath?: string
 
     // Server setup
     httpServer.listen(EXPRESS_PORT, () => {
-        Logger.info({message: `Scraper Service is Running on: http://localhost:${EXPRESS_PORT}`}, "EXPRESS_APP_RUNNING")
+        Logger.info({
+            message: `Express App is Running on: http://localhost:${EXPRESS_PORT}`,
+            EXPRESS_PORT
+        }, 'EXPRESS_APP_RUNNING')
     })
 }
 

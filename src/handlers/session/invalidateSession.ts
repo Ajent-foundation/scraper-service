@@ -61,37 +61,43 @@ async function invalidateSession(
 
 			if (!isInvalidated) {
 				// log warning
-				res.log.warn({
-					message: 'session already invalidated!',
-					sessionID: 'sessionID',
-				}, "session:invalidateSession:51");
+				res.log.error({
+					...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+					message: "Session already invalidated",
+				}, "ENDPOINT_ERROR")
 			}
 
 			// log success
+			res.locals.httpInfo.status_code = 200;
 			res.log.info({
-				message: 'session invalidated',
-				sessionID: 'sessionID',
-			}, "session:invalidateSession:66");
+				...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+				message: "Session invalidated",
+			}, "ENDPOINT_SUCCESS")
+
 
 			return UTILITY.EXPRESS.respond(res, 200, {});
 		} else {
 			// log error
+			res.locals.httpInfo.status_code = 404;
 			res.log.error({
-				message: 'session not found',
-				startTime: res.locals.generalInfo.startTime,
-			}, "session:invalidateSession:82");
+				...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+				message: "Session not found",
+			}, "ENDPOINT_ERROR")
+
 			return UTILITY.EXPRESS.respond(res, 404, {
 				code: 'SESSION_NOT_FOUND',
 				message: 'Session Not Found',
 			});
 		}
-	} catch (err) {
+	} catch (error) {
 		// Log error
+		res.locals.httpInfo.status_code = 500;
 		res.log.error({
-			message: err.message,
-			stack: err.stack,
-			startTime: res.locals.generalInfo.startTime,
-		}, "session:invalidateSession:102");
+			...(res.locals.importantHeaders ? res.locals.importantHeaders : {}),
+			message: error instanceof Error ? error.message : "Unknown error",
+			stack: error instanceof Error ? error.stack : undefined,
+		}, "ENDPOINT_ERROR")
+
 		return UTILITY.EXPRESS.respond(res, 500, {
 			code: 'INTERNAL_SERVER_ERROR',
 			message: 'Internal Server Error',

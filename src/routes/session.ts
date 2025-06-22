@@ -10,6 +10,11 @@ import listFiles from '../handlers/session/listFiles';
 import downloadFile from '../handlers/session/downloadFile';
 import uploadFile from '../handlers/session/uploadFile';
 import extendSession from '../handlers/session/extendSession';
+import vncStatus from '../handlers/session/vncStatus';
+import registerApiKey from '../handlers/session/registerApiKey';
+import removeControl from '../handlers/session/removeControl';
+import getClients from '../handlers/session/getClients';
+import control from '../handlers/session/control';
 
 const SESSION_ROUTES = Router();
 
@@ -66,6 +71,32 @@ SESSION_ROUTES.post(
 SESSION_ROUTES.post(
 	'/:sessionID/download',
 	download,
+);
+
+// VNC Endpoints
+SESSION_ROUTES.get(
+	'/:sessionID/vnc/status',
+	vncStatus,
+);
+
+SESSION_ROUTES.post(
+	'/:sessionID/vnc/registerApiKey',
+	registerApiKey,
+);
+
+SESSION_ROUTES.delete(
+	'/:sessionID/vnc/clients/:clientId/removeControl',
+	removeControl,
+);
+
+SESSION_ROUTES.get(
+	'/:sessionID/vnc/clients',
+	getClients,
+);
+
+SESSION_ROUTES.post(
+	'/:sessionID/vnc/clients/:clientId/grantControl',
+	control,
 );
 
 export default SESSION_ROUTES;

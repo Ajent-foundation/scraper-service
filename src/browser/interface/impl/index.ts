@@ -7,30 +7,29 @@ import scrollNext from "./scroll/scrollNext"
 import scrollTo from "./scroll/scrollTo"
 import scrollBottom from "./scroll/scrollBottom"
 import scrollTop from "./scroll/scrollTop"
-
 import scrollAtPosition from "./scroll/scrollAtPosition"
 
 // Screenshots
 import fullScreenshot from "./screenshots/fullScreenshot"
 import screenShot from "./screenshots/screenShot"
 import systemScreenshot from "./screenshots/systemScreenshot"
+import systemScreenshotV2 from "./screenshots/systemScreenshotV2"
 
 // Actions
 import typeInput from "./actions/typeInput"
 import checkBox from "./actions/checkBox"
 import smartClick from "./actions/smartClick"
 import click from "./actions/click"
+import setGeoLocation from "./actions/setGeoLocation"
 import customAction from "./actions/customAction"
 import injectJavascript from "./actions/injectJavascript"
 import hover from "./actions/hover"
 import delay from "./actions/delay"
-
 // Getters
 import getElms from "./getters/getElms"
 import getSelectOptions from "./getters/getSelectOptions"
 import getRepeatedElmsByXpathCommand from "./getters/getRepeatedElmsByXpathCommand"
 import getRepeatedElmsCommand from "./getters/getRepeatedElmsCommand"
-
 // SYs
 import closeDialog from "./sys/closeDialog"
 import isDialogOpen from "./sys/isDialogOpen"
@@ -48,7 +47,7 @@ export default {
     hover,
     delay,
     keyPress,
-
+    setGeoLocation,
     // Getters
     getElms,
     getSelectOptions,
@@ -66,8 +65,10 @@ export default {
     scrollBottom,
     scrollTop,
     scrollAtPosition,
+
     // Screenshots
     fullScreenshot,
+    systemScreenshotV2,
     screenShot,
-    systemScreenshot
+    systemScreenshot,
 }

@@ -1,6 +1,7 @@
 import { Page } from 'puppeteer';
 import { setMousePosition } from '../../ghostCursor';
 import { GhostCursor } from 'ghost-cursor';
+import { Logger } from 'pino';
 
 export interface IBody {
     x: number;
@@ -9,7 +10,7 @@ export interface IBody {
     axis: string;
 }
 
-export default async function execute(page: Page, cursor:GhostCursor, body: IBody) {
+export default async function execute(page: Page, cursor:GhostCursor, body: IBody, log: Logger) {
     // Move the cursor to the position
     if (cursor) {
         await cursor.moveTo({ x: body.x, y: body.y });
@@ -117,6 +118,14 @@ export default async function execute(page: Page, cursor:GhostCursor, body: IBod
     await page.mouse.wheel({
         deltaY: body.axis === 'up' ? -scrollBy : scrollBy,
     });
+
+    log.info("scrollBy", scrollBy)
+    log.info("scrollSize", scrollSize)
+    log.info("body", body)
+
+    console.log("scrollBy", scrollBy)
+    console.log("scrollSize", scrollSize)
+    console.log("body", body)
 
     return {}
 }

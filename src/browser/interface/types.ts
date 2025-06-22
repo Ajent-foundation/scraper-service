@@ -100,6 +100,11 @@ export type GetElms = {
 	fullPage?: boolean;
 };
 
+export type SystemScreenshotV2 = {
+	action: Action.SystemScreenshotV2;
+	resize?: number
+};
+
 export type Elem = {
 	x: number;
 	y: number;
@@ -187,4 +192,11 @@ export type IsDialogOpen = {
 export type SelectFileFromDialog = {
 	action: Action.SelectFileFromDialog;
 	fileName: string;
+};
+
+export type SetGeoLocationCommand = {
+	action: Action.SetGeoLocation;
+	latitude: number;
+	longitude: number;
+	accuracy?: number;
 };

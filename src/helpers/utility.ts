@@ -46,7 +46,7 @@ const UTILITY = {
             let result = {}
 
             return new Promise((resolveFunc) => {
-                p.stdout.on("data", (__result:any) => {
+                p.stdout.on("data", (__result) => {
                     result = JSON.parse(__result.toString())
                 })
                 p.stderr.on("data", () => {
