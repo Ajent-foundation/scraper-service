@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser'
 import NodeCache from 'node-cache'
 import { freeUpSession } from './apis/browsers-cmgr'
 import { NOT_FOUND, ERR_HANDLER} from './middlewares/generics'
+import { logger as loggerInit } from './middlewares/logger'
 import { createServer, Server } from 'http'
 import httpProxy from 'http-proxy'
 import { detailedStatus } from './apis/browser-cmgr/detailedStatus'
@@ -110,6 +111,7 @@ export async function main(
     EXPRESS_APP.use(cookieParser())
 
     // Express-Middlewares
+    EXPRESS_APP.use(loggerInit)
 
     // Express-Routes
     EXPRESS_APP.use("/", 
