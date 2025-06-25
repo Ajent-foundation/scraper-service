@@ -163,7 +163,7 @@ export async function main(
 
             // Handle WebSocket connections for browser debugging
             if (req.url && req.url.startsWith('/ws/')) {
-                const targetUrl = `ws://${browser.labels.ip}:${browser.ports.browser}/devtools/browser/${browser.labels.wsPath}${queryString}`
+                const targetUrl = `ws://${browser.labels.ip}:${browser.ports.browser}/devtools/browser/${browser.labels.wsPath}`
                 Logger.info({
                     message: "Proxying WS connection",
                     sessionID,
