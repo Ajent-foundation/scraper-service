@@ -43,21 +43,6 @@ export type BrowserSession = BaseSession & {
 	vncPassword?: string;
 };
 
-export type MobileConfig = {
-	package?: string;
-	min_sdk?: number;
-	emulation?: boolean;
-	reset_storage?: boolean;
-	stream?: boolean;
-	apk?: Express.Multer.File | null;
-	gplay_installation?: boolean;
-	device_uuid?: string;
-};
-
-export type MobileSession = BaseSession & {
-	config: MobileConfig;
-};
-
 export interface IBrowser {
 	logger: Logger;
 }

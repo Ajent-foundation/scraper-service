@@ -5,8 +5,6 @@ import {
 	BrowserSession,
 	getSessionInfo,
 	BrowserConfig,
-	MobileConfig,
-	MobileSession,
 } from '../../apis/browsers-cmgr';
 import { Network } from '../../base/proxy/brightdata';
 import { TheGlobe, Country } from '../../base/global/index';
@@ -23,7 +21,6 @@ export const RequestBodySchema = z.object({
 	leaseTime: z.number().optional(),
 	useProxy: z.boolean().optional(),
 	config: z.custom<BrowserConfig>().optional(),
-	mobileConfig: z.custom<MobileConfig>().optional(),
 	proxyConfig: z.object({
 		countryCode: z.string(),
 		network: z.custom<Network>(),
@@ -59,8 +56,6 @@ async function createSession(
 ) {
 	// InitVars
 	const cache: NodeCache = res.locals.cache;
-	const isMobileSession = !!req.body.mobileConfig;
-	let apiKey: string | undefined;
 
 	// Validate Zod
 	try {
