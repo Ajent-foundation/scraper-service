@@ -40,6 +40,7 @@ export const RequestBodySchema = z.object({
  	extensions: z.array(z.string()).optional(),
  	overrideUserAgent: z.string().optional(),
 	vnc: z.enum(["legacy", "new"]).optional(),
+	vncMode: z.enum(["ro", "rw"]).optional(),
 });
 
 
@@ -69,6 +70,10 @@ async function createSession(
 
 	if(!req.body.vnc){
 		req.body.vnc = "legacy"
+	}
+
+	if(!req.body.vncMode){
+		req.body.vncMode = "ro"
 	}
 
 	try {
