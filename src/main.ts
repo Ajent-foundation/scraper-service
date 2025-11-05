@@ -18,7 +18,8 @@ if (require.main === module) {
         await main(
             "Prod", 
             {
-                EXPRESS_PORT: process.env.EXPRESS_PORT || "8080"
+                EXPRESS_PORT: process.env.EXPRESS_PORT || "8080",
+                BROWSER_POC_SERVICE: process.env.BROWSER_POC_SERVICE
             },
         )
         
