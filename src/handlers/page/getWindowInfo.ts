@@ -5,6 +5,7 @@ import { BrowserSession } from '../../apis/browsers-cmgr';
 import { BaseRequest } from '../../helpers/Base';
 import UTILITY from '../../helpers/utility';
 import { connectToBrowser } from '../../browser';
+import { getBrowserURL } from '../../apis/browsers-cmgr';
 import { getCurrentPage } from '../../browser/pages';
 import { z } from 'zod';
 
@@ -42,7 +43,7 @@ async function getWindowInfo(
 		const puppeteerBrowser = await connectToBrowser(
 			res.log,
 			res.locals.importantHeaders ? res.locals.importantHeaders : {},
-			session.url,
+			getBrowserURL(session),
 			res.locals.sessionID
 		);
 		const { page } = await getCurrentPage(res.log, res.locals.importantHeaders ? res.locals.importantHeaders : {}, puppeteerBrowser, session.config);

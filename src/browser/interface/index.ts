@@ -5,6 +5,7 @@ import { BaseRequest } from '../../helpers/Base';
 import UTILITY from '../../helpers/utility';
 import { Browser } from 'puppeteer';
 import { connectToBrowser, VIEW_PORT } from '../../browser';
+import { getBrowserURL } from '../../apis/browsers-cmgr';
 import { configureGhostCursor } from './ghostCursor';
 import {
 	getCurrentPage,
@@ -51,8 +52,9 @@ export async function executeBrowserCommands(
     const puppeteerBrowser: Browser = await connectToBrowser(
         res.log,
         res.locals.importantHeaders ? res.locals.importantHeaders : {},
-        session.url,
-        res.locals.sessionID
+        getBrowserURL(session),
+        res.locals.sessionID,
+        session.appPort
     );
     let { page, index, pageCount } = await getCurrentPage(
         res.log,

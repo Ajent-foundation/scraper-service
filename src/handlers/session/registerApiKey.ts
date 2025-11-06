@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import NodeCache from 'node-cache';
-import { BrowserSession } from '../../apis/browsers-cmgr';
+import { BrowserSession, getBrowserHostname } from '../../apis/browsers-cmgr';
 import UTILITY from '../../helpers/utility';
 import { z } from 'zod';
 import axios from 'axios';
@@ -50,7 +50,8 @@ async function registerApiKey(
 		}
 
 		// Proxy request to VNC port
-		const vncUrl = `http://localhost:${session.vncPort}/apiKeys/register`;
+		const hostname = getBrowserHostname(session);
+		const vncUrl = `http://${hostname}:${session.vncPort}/apiKeys/register`;
 		
 		try {
 			const vncResponse = await axios.post(vncUrl, req.body, {

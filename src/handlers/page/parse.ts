@@ -7,6 +7,7 @@ import { BrowserSession } from '../../apis/browsers-cmgr'
 import { BaseRequest } from '../../helpers/Base'
 import UTILITY from '../../helpers/utility'
 import { connectToBrowser } from '../../browser';
+import { getBrowserURL } from '../../apis/browsers-cmgr';
 import { extractJSON } from '../../helpers/extract/links/newDomParser';
 import { parse } from 'path';
 import { z } from 'zod';
@@ -42,7 +43,7 @@ export async function parseToJSON(req:Request<RequestQuery, {}, RequestBody, Req
         const puppeteerBrowser: Browser = await connectToBrowser(
 			res.log,
 			res.locals.importantHeaders ? res.locals.importantHeaders : {},
-			session.url,
+			getBrowserURL(session),
 			res.locals.sessionID
 		);
 		const pageObject: { page: Page; index: number } = await getCurrentPage(

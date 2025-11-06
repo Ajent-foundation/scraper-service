@@ -6,6 +6,7 @@ import { Logger } from 'pino';
 import UTILITY from '../../helpers/utility';
 import { Browser } from 'puppeteer';
 import { connectToBrowser } from "../../browser"
+import { getBrowserURL } from '../../apis/browsers-cmgr';
 import { z } from 'zod';
 
 export const RequestParamsSchema = z.object({});
@@ -42,7 +43,7 @@ async function getPagesInfo(
 		const puppeteerBrowser:Browser = await connectToBrowser(
 			res.log,
 			res.locals.importantHeaders ? res.locals.importantHeaders : {},
-			session.url,
+			getBrowserURL(session),
 			res.locals.sessionID
 		)
 

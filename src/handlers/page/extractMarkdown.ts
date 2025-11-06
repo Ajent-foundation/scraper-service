@@ -7,6 +7,7 @@ import { BrowserSession } from '../../apis/browsers-cmgr'
 import { BaseRequest } from '../../helpers/Base'
 import UTILITY from '../../helpers/utility'
 import { connectToBrowser } from '../../browser';
+import { getBrowserURL } from '../../apis/browsers-cmgr';
 import { Readability } from '@mozilla/readability';
 import TurndownService from 'turndown';
 import { JSDOM } from 'jsdom';
@@ -46,7 +47,7 @@ export async function extractMarkdown(
         const puppeteerBrowser: Browser = await connectToBrowser(
 			res.log,
 			res.locals.importantHeaders ? res.locals.importantHeaders : {},
-			session.url,
+			getBrowserURL(session),
 			res.locals.sessionID
 		);
 		const pageObject: { page: Page; index: number } = await getCurrentPage(res.log, res.locals.importantHeaders ? res.locals.importantHeaders : {}, puppeteerBrowser, session.config);

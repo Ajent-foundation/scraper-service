@@ -248,6 +248,19 @@ async function createSession(
 				});
 			}
 
+			// Get container hostname from detailedStatus
+			let hostname: string | undefined = undefined;
+			try {
+				const cmgrState = await detailedStatus();
+				const browser = cmgrState.browsers.find((b) => b.labels.id === sessionInfo.browserID);
+				if (browser) {
+					hostname = browser.name; // Container name
+				}
+			} catch (err) {
+				// If we can't get hostname, fall back to environment variable or localhost
+				res.log.warn({ error: err }, "Failed to get container hostname, using default");
+			}
+
 			// create session object
 			const session: BrowserSession = {
 				browserID: sessionInfo.browserID,
@@ -261,6 +274,7 @@ async function createSession(
 				jobs: [],
 				config: browserConfig,
 				vncPassword: sessionInfo.vncPassword,
+				hostname: hostname,
 			};
 
 			// Set session to cache

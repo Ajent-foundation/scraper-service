@@ -5,6 +5,7 @@ import { BaseRequest } from '../../helpers/Base';
 import { Logger } from 'pino';
 import UTILITY from '../../helpers/utility';
 import { VIEW_PORT, connectToBrowser } from '../../browser';
+import { getBrowserURL } from '../../apis/browsers-cmgr';
 import {
 	getCurrentPage,
 	getPageCount,
@@ -53,8 +54,9 @@ async function goToPage(
 		const puppeteerBrowser = await connectToBrowser(
 			res.log,
 			res.locals.importantHeaders ? res.locals.importantHeaders : {},
-			session.url,
-			res.locals.sessionID
+			getBrowserURL(session),
+			res.locals.sessionID,
+			session.appPort
 		);
 		let { page, index } = await getCurrentPage(
 			res.log,

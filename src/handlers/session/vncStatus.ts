@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import NodeCache from 'node-cache';
-import { BrowserSession } from '../../apis/browsers-cmgr';
+import { BrowserSession, getBrowserHostname } from '../../apis/browsers-cmgr';
 import UTILITY from '../../helpers/utility';
 import { z } from 'zod';
 import axios from 'axios';
@@ -48,7 +48,8 @@ async function vncStatus(
 		}
 
 		// Proxy request to VNC port
-		const vncUrl = `http://localhost:${session.vncPort}/status`;
+		const hostname = getBrowserHostname(session);
+		const vncUrl = `http://${hostname}:${session.vncPort}/status`;
 		
 		try {
 			const vncResponse = await axios.get(vncUrl, {

@@ -57,6 +57,7 @@ export async function preProcess(
 					appPort: browser.ports.app,
 					type: "browser",
 					jobs: [],
+					hostname: browser.name, // Store container name
 				}, res.locals.cacheTimeout)
 			} else {
 				// Update session cache

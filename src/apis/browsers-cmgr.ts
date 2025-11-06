@@ -41,10 +41,44 @@ export type BrowserSession = BaseSession & {
 	vncPort: number;
 	config: BrowserConfig;
 	vncPassword?: string;
+	hostname?: string; // Container hostname for Docker environments
 };
 
 export interface IBrowser {
 	logger: Logger;
+}
+
+/**
+ * Get the hostname for connecting to browser-node services (VNC, app port, etc.)
+ * Uses BROWSER_CONNECTION_HOST if set, otherwise defaults to localhost
+ * In Docker environments, BROWSER_CONNECTION_HOST should be set to the container name pattern
+ */
+export function getBrowserHostname(session?: BrowserSession): string {
+	// If hostname is stored in session, use it
+	if (session?.hostname) {
+		return session.hostname;
+	}
+	// Otherwise use environment variable or default to localhost
+	return process.env.BROWSER_CONNECTION_HOST || 'localhost';
+}
+
+/**
+ * Build the browser URL for Puppeteer connection
+ * Uses hostname and wsPort from session, or falls back to session.url
+ */
+export function getBrowserURL(session: BrowserSession): string {
+	// If hostname is stored, build URL using hostname and wsPort
+	if (session.hostname) {
+		return `http://${session.hostname}:${session.wsPort}`;
+	}
+	// Otherwise use the session.url (for backward compatibility)
+	// But replace 0.0.0.0 with hostname if possible
+	const url = session.url;
+	if (url.includes('0.0.0.0')) {
+		const hostname = getBrowserHostname(session);
+		return url.replace('0.0.0.0', hostname);
+	}
+	return url;
 }
 
 export type SessionInfo = {

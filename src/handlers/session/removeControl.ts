@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import NodeCache from 'node-cache';
-import { BrowserSession } from '../../apis/browsers-cmgr';
+import { BrowserSession, getBrowserHostname } from '../../apis/browsers-cmgr';
 import UTILITY from '../../helpers/utility';
 import { z } from 'zod';
 import axios from 'axios';
@@ -50,7 +50,8 @@ async function removeControl(
 
 		// Proxy request to VNC port
 		const clientId = req.params.clientId;
-		const vncUrl = `http://localhost:${session.vncPort}/clients/${clientId}/control`;
+		const hostname = getBrowserHostname(session);
+		const vncUrl = `http://${hostname}:${session.vncPort}/clients/${clientId}/control`;
 		
 		try {
 			const vncResponse = await axios.delete(vncUrl, {
