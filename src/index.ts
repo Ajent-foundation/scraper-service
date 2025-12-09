@@ -15,7 +15,10 @@ import pinoHttp from 'pino-http'
 import DefaultRoutesHandler from "./routes/default"
 import PageRoutesHandler from "./routes/page"
 import SessionRoutesHandler from "./routes/session"
+import SystemRoutesHandler from "./routes/system"
+import RecordingRoutesHandler from "./routes/recording"
 import { IDetailedStatusResponse } from './apis/browser-cmgr/detailedStatus'
+import { init } from './ai/prompts'
 
 let httpServer: Server | undefined = undefined
 let wsProxy = httpProxy.createProxyServer({})
@@ -86,7 +89,13 @@ export async function main(
         checkperiod:TIMEOUT, 
         useClones:true
     })
-    
+
+    // Init Ai
+    const AGENTS = await init(Logger, false, undefined, undefined)
+    if(!AGENTS){
+        throw new Error("FAILED_TO_INIT_AI")
+    }
+
     //InitExpress
     const EXPRESS_APP: Application = express()
     httpServer = createServer(EXPRESS_APP)
@@ -101,7 +110,7 @@ export async function main(
         res.locals.timeout = TIMEOUT
         res.locals.cacheTimeout = CACHE_TIMEOUT
         res.locals.viewPort = VIEW_PORT
-
+        res.locals.agents = AGENTS
         next()
     })
 
@@ -124,6 +133,14 @@ export async function main(
     
     EXPRESS_APP.use("/session", 
         SessionRoutesHandler
+    )
+
+    EXPRESS_APP.use("/system", 
+        SystemRoutesHandler
+    )
+
+    EXPRESS_APP.use("/recording", 
+        RecordingRoutesHandler
     )
 
     //Not Found & Error Handler

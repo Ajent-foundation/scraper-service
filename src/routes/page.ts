@@ -14,6 +14,7 @@ import pdf from '../handlers/page/pdf';
 import extractMarkdown from '../handlers/page/extractMarkdown';
 import { preProcess, postProcess } from '../middlewares/jobProcess';
 import goBack from '../handlers/page/goBack';
+import runAiJob from '../handlers/page/runAiJob';
 
 const PAGE_ROUTES = Router();
 
@@ -113,6 +114,13 @@ PAGE_ROUTES.post(
 	'/pdf',
 	preProcess,
 	pdf,
+	postProcess,
+);
+
+PAGE_ROUTES.post(
+	'/runAiJob',
+	preProcess,
+	runAiJob,
 	postProcess,
 );
 
