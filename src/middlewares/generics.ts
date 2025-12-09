@@ -22,7 +22,7 @@ export const ERR_HANDLER: ErrorRequestHandler = (err:any, req:Request, res:Respo
         UTILITY.EXPRESS.respond(res, 400, {
             code: "BAD_REQUEST",
             message: "Invalid input. Please check the data you have provided and try again. ",
-            errors: err.errors
+            errors: err.issues
         })
     } else {
         res.log.error({
