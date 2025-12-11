@@ -19,6 +19,7 @@ import SystemRoutesHandler from "./routes/system"
 import RecordingRoutesHandler from "./routes/recording"
 import { IDetailedStatusResponse } from './apis/browser-cmgr/detailedStatus'
 import { init } from './ai/prompts'
+import { startHeartbeat, stopHeartbeat } from './services/heartbeat'
 
 let httpServer: Server | undefined = undefined
 let wsProxy = httpProxy.createProxyServer({})
@@ -225,15 +226,21 @@ export async function main(
     })
 
     // Server setup
-    httpServer.listen(EXPRESS_PORT, () => {
+    httpServer.listen(EXPRESS_PORT, async () => {
         Logger.info({
             message: `Express App is Running on: http://localhost:${EXPRESS_PORT}`,
             EXPRESS_PORT
         }, 'EXPRESS_APP_RUNNING')
+
+        // Start heartbeat service (optional - reads config from env or GCP metadata)
+        await startHeartbeat(Logger)
     })
 }
 
 export async function shutdown(): Promise<void> {
+    // Stop heartbeat first
+    stopHeartbeat()
+
     return new Promise((resolve) => {
         if (!httpServer) {
             resolve();
