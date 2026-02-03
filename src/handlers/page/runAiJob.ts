@@ -104,7 +104,7 @@ async function runAiJob(
 
 		const agent = (agents.generalAgent as unknown as TGeneralAgent).overrideProvider({
 			provider: "ConfidentialPhalaLLM",
-			model: "phala/deepseek-chat-v3-0324",
+			model: "openai/gpt-oss-120b",
 			temperature: 1.0,
 		})
 		//const agent = (agents.generalAgent as unknown as TGeneralAgent).overrideProvider({
@@ -139,6 +139,7 @@ async function runAiJob(
 			Object.keys(req.body.envVariables).forEach(key => {
 				pageInfo.push(`  - $${key} (masked value available)`);
 			});
+			pageInfo.push(`Select from this list only—never guess values. Map form labels to the best variable (e.g. Provider → $provider, API Key → $key).`);
 		}
 
 		const finalResponseJsonSchema = convertJsonSchemaToZod(validatedFinalResponseJsonSchema);
@@ -172,6 +173,10 @@ async function runAiJob(
 			[browserOperator, think], // Browser operator as a subagent + think tool
 			stopCheckpoint, // Stop checkpoint for task completion
 			false, // shouldUseTodos - TODO functionality disabled
+			undefined, // onTodoUpdate
+			undefined, // callbacks
+			true, // autoSummarize - prevent context overflow from browser operations
+			undefined
 		);
 
 		const state = decoder(req.body.state);
@@ -194,7 +199,7 @@ async function runAiJob(
 			objective: req.body.userPrompt,
 			messages: messages,
 		}, {
-			recursionLimit: 25,
+			recursionLimit: 100,
 			tags: [
 				`browser_ai_job_${res.locals.sessionID}`,
 			],

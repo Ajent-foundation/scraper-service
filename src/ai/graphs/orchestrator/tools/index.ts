@@ -20,11 +20,10 @@ import { move } from "./move";
 import { wait } from "./wait";
 import { goBack } from "./goBack";
 
+/** Browser tools exposed to the AI. Screenshot and getElms are auto-run after every action and passed as last message in invoke only. */
 export const browserTools: TZodBaseToolDefinition<TBrowserContext, any, any>[] = [
     goToPage,
     click,
-    getElms,
-    screenshot,
     type,
     scroll,
     move,

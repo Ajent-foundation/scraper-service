@@ -1,5 +1,5 @@
 import { StateGraph, CompiledStateGraph, UpdateType, StateDefinition, StateType, START, END } from "@langchain/langgraph"
-import { GlobalGraphState, TRootState } from "./memory"
+import { GlobalGraphState, TRootState, TSummarizedChunk } from "./memory"
 import { drawGraph, initFileDebugger } from "../GraphWrapper/utils/index";
 import { ConditionalNodeLambdaRunner, GraphError, NodeLambdaRunner } from "../GraphWrapper/index";
 import { RETRY_POLICIES } from "./constants";
@@ -43,6 +43,14 @@ export class SupervisorAgent<G extends {
         }) => Promise<void>
         onToolError ?: (global: G, toolCall: ToolCall, error: unknown) => Promise<void>
     } | undefined
+    private __autoSummarize: {
+        enabled: boolean
+        maxTokens: number
+        summarizer?: (global: G, messages: BaseMessage[], objective: string) => Promise<BaseMessage[] | undefined>
+    }
+    private __llm: TGeneralAgent
+    /** If set, invoked before each LLM call; the returned message is appended only to this invoke (not pushed to state.messages). Used e.g. for "current page state" (screenshot + getElms). */
+    private __getCurrentStateMessage?: (global: G) => Promise<BaseMessage | null>
 
     constructor(
         global: G,
@@ -60,7 +68,15 @@ export class SupervisorAgent<G extends {
                 base64Images: string[]
             }) => Promise<void>
             onToolError ?: (global: G, toolCall: ToolCall, error: unknown) => Promise<void>
-        }
+        },
+        /** Enable auto-summarization of messages when context gets too large. */
+        autoSummarize?: boolean | {
+            enabled: boolean
+            maxTokens?: number
+            summarizer?: (global: G, messages: BaseMessage[], objective: string) => Promise<BaseMessage[] | undefined>
+        },
+        /** If set, called before each LLM invoke; result is appended to messages for this invoke only (not stored in state.messages). */
+        getCurrentStateMessage?: (global: G) => Promise<BaseMessage | null>
     ) {
         this.__graphName = identity.name
         this.__workers = workers
@@ -69,6 +85,20 @@ export class SupervisorAgent<G extends {
         this.__currentTodoIndex = 0
         this.__onTodoUpdate = onTodoUpdate
         this.__callbacks = callbacks
+        this.__getCurrentStateMessage = getCurrentStateMessage
+        this.__llm = llm
+
+        if (typeof autoSummarize === 'boolean') {
+            this.__autoSummarize = { enabled: autoSummarize, maxTokens: 150000 }
+        } else if (autoSummarize) {
+            this.__autoSummarize = {
+                enabled: autoSummarize.enabled,
+                maxTokens: autoSummarize.maxTokens || 150000,
+                summarizer: autoSummarize.summarizer
+            }
+        } else {
+            this.__autoSummarize = { enabled: false, maxTokens: 100000 }
+        }
 
         const { logFilePath, logToFile } = initFileDebugger(global.ctx.logger, this.__graphName)
 
@@ -130,9 +160,78 @@ export class SupervisorAgent<G extends {
                         }
 
                         const llmTools = this.__getToolDefinitionV1(stop, shouldUseTodos)
+
+                        const existingChunks = state.summarizedChunks || []
+                        let messagesToUse = this.__buildEffectiveMessages(state.messages, existingChunks)
+
+                        if (this.__autoSummarize.enabled) {
+                            const tokenEstimate = this.__estimateTokens(messagesToUse)
+                            if (tokenEstimate > this.__autoSummarize.maxTokens) {
+                                global.ctx.logger.info({
+                                    tokenEstimate,
+                                    maxTokens: this.__autoSummarize.maxTokens,
+                                    effectiveMessageCount: messagesToUse.length,
+                                    totalMessageCount: state.messages.length,
+                                    existingChunks: existingChunks.length
+                                }, 'Context too large, creating new summary chunk')
+
+                                const lastSummarizedIndex = existingChunks.length > 0
+                                    ? Math.max(...existingChunks.map(c => c.toIndex))
+                                    : 1
+                                const summarizeFromIndex = lastSummarizedIndex
+                                let summarizeToIndex = Math.max(summarizeFromIndex, state.messages.length - 12)
+
+                                while (summarizeToIndex > summarizeFromIndex) {
+                                    const msgAtBoundary = state.messages[summarizeToIndex]
+                                    if (msgAtBoundary instanceof ToolMessage) {
+                                        summarizeToIndex--
+                                    } else if (msgAtBoundary instanceof AIMessage && msgAtBoundary.tool_calls?.length) {
+                                        summarizeToIndex--
+                                    } else {
+                                        break
+                                    }
+                                }
+
+                                if (summarizeToIndex > summarizeFromIndex) {
+                                    const messagesToSummarize = state.messages.slice(summarizeFromIndex, summarizeToIndex)
+                                    const summaryMessage = await this.__createSummaryChunk(
+                                        messagesToSummarize,
+                                        state.objective || '',
+                                        global
+                                    )
+                                    const newChunk: TSummarizedChunk = {
+                                        fromIndex: summarizeFromIndex,
+                                        toIndex: summarizeToIndex,
+                                        summary: summaryMessage
+                                    }
+                                    const updatedChunks = [...existingChunks, newChunk]
+                                    newStateChanges.summarizedChunks = updatedChunks
+                                    messagesToUse = this.__buildEffectiveMessages(state.messages, updatedChunks)
+                                    global.ctx.logger.info({
+                                        originalTokens: tokenEstimate,
+                                        newTokens: this.__estimateTokens(messagesToUse),
+                                        summarizedRange: `${summarizeFromIndex}-${summarizeToIndex}`,
+                                        totalChunks: updatedChunks.length,
+                                        effectiveMessages: messagesToUse.length
+                                    }, 'New summary chunk created')
+                                }
+                            }
+                        }
+
+                        if (this.__getCurrentStateMessage) {
+                            try {
+                                const currentStateMessage = await this.__getCurrentStateMessage(global)
+                                if (currentStateMessage) {
+                                    messagesToUse = [...messagesToUse, currentStateMessage]
+                                }
+                            } catch (err) {
+                                global.ctx.logger.warn({ err }, "getCurrentStateMessage failed")
+                            }
+                        }
+
                         const aiResponse = await llm.invoke(
                             {
-                                messages: state.messages,
+                                messages: messagesToUse,
                                 expertise: identity.expertise,
                                 role: identity.role,
                                 objective: state.objective,
@@ -775,5 +874,143 @@ export class SupervisorAgent<G extends {
             progress: `${this.__currentTodoIndex}/${this.__todos.length}`,
             isCompleted: this.__currentTodoIndex >= this.__todos.length
         }
+    }
+
+    private __estimateTokens(messages: BaseMessage[]): number {
+        let totalTokens = 0
+        for (const msg of messages) {
+            if (typeof msg.content === 'string') {
+                totalTokens += Math.ceil(msg.content.length / 4)
+            } else if (Array.isArray(msg.content)) {
+                const parts = msg.content as unknown[]
+                for (const part of parts) {
+                    if (typeof part === 'string') {
+                        totalTokens += Math.ceil(part.length / 4)
+                    } else if (part && typeof part === 'object') {
+                        const p = part as Record<string, unknown>
+                        if (p.type === 'text' && typeof p.text === 'string') {
+                            totalTokens += Math.ceil((p.text as string).length / 4)
+                        } else if (p.type === 'image_url' || p.type === 'image') {
+                            totalTokens += 1105
+                        }
+                    }
+                }
+            } else {
+                totalTokens += Math.ceil(JSON.stringify(msg.content).length / 4)
+            }
+        }
+        return totalTokens
+    }
+
+    private __buildEffectiveMessages(messages: BaseMessage[], chunks: TSummarizedChunk[]): BaseMessage[] {
+        if (chunks.length === 0) return messages
+        const sortedChunks = [...chunks].sort((a, b) => a.fromIndex - b.fromIndex)
+        const effectiveMessages: BaseMessage[] = []
+        let currentIndex = 0
+        for (const chunk of sortedChunks) {
+            for (let i = currentIndex; i < chunk.fromIndex && i < messages.length; i++) {
+                effectiveMessages.push(messages[i])
+            }
+            effectiveMessages.push(chunk.summary)
+            currentIndex = chunk.toIndex
+        }
+        for (let i = currentIndex; i < messages.length; i++) {
+            effectiveMessages.push(messages[i])
+        }
+        return effectiveMessages
+    }
+
+    private async __createSummaryChunk(messages: BaseMessage[], objective: string, global: G): Promise<BaseMessage> {
+        const conversationText = messages.map((msg) => {
+            const role = msg._getType()
+            const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+            const truncated = content.length > 2000
+                ? content.substring(0, 800) + '\n...[' + (content.length - 1200) + ' chars omitted]...\n' + content.substring(content.length - 400)
+                : content
+            return `[${role.toUpperCase()}]: ${truncated}`
+        }).join('\n\n')
+
+        const summaryStopSchema = z.object({
+            summary: z.string().describe("A concise summary of the key actions, results, and current state"),
+            keyPoints: z.array(z.string()).describe("List of key points that must be preserved"),
+            currentState: z.string().describe("What is the current state/progress towards the objective"),
+        })
+        const stopCheckpoint: TStopCheckpoint<G, typeof summaryStopSchema> = {
+            parameters: summaryStopSchema,
+            evaluator: async () => undefined,
+        }
+
+        const summarizerAgent = new SupervisorAgent<G>(
+            global,
+            {
+                name: "Conversation Summarizer",
+                expertise: "Condensing long conversations while preserving critical context",
+                role: "A specialist at summarizing AI agent conversations to save tokens while keeping essential information",
+                tools: "stop tool only",
+                guidelines: `You are a conversation summarizer. Your task is to condense the following conversation chunk while preserving:
+1. Key actions taken and their results
+2. Important discoveries or data found
+3. Current state and progress
+4. Any errors or blockers encountered
+5. Critical information needed to continue
+
+Be concise but complete. This summary replaces the original messages.`,
+                context: `Objective: ${objective}\n\nConversation chunk to summarize (${messages.length} messages):\n${conversationText}`,
+            },
+            "Summarize this conversation chunk",
+            this.__llm,
+            [],
+            stopCheckpoint,
+            false,
+            undefined,
+            undefined,
+            false, // Don't auto-summarize the summarizer
+            undefined
+        )
+
+        try {
+            const result = await summarizerAgent.graph.invoke({
+                objective: "Summarize this conversation chunk concisely",
+                messages: [
+                    new HumanMessage({
+                        content: `Summarize the conversation chunk above. Focus on key actions, discoveries, and what was achieved. Be concise.`,
+                    }),
+                ],
+            }, { recursionLimit: 5, tags: ['summarizer'] })
+
+            const lastMessage = result.messages[result.messages.length - 1]
+            let summaryContent = ''
+            try {
+                const parsed = JSON.parse(lastMessage?.content?.toString() || '{}')
+                summaryContent = `**Summary:** ${parsed.summary || 'Previous actions completed.'}\n\n**Key points:**\n${(parsed.keyPoints || []).map((p: string) => `• ${p}`).join('\n')}\n\n**State:** ${parsed.currentState || 'In progress'}`
+            } catch {
+                summaryContent = lastMessage?.content?.toString() || 'Previous conversation chunk summarized.'
+            }
+            return new HumanMessage({
+                content: `[SUMMARIZED CHUNK - ${messages.length} messages condensed]\n\n${summaryContent}`,
+            })
+        } catch (error) {
+            global.ctx.logger.warn({ error }, 'AI summarization failed, using fallback')
+            return this.__createFallbackSummary(messages)
+        }
+    }
+
+    private __createFallbackSummary(messages: BaseMessage[]): BaseMessage {
+        const keyEvents: string[] = []
+        for (const msg of messages) {
+            const content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+            try {
+                const parsed = JSON.parse(content)
+                if (parsed.summary) keyEvents.push(`• ${parsed.summary.substring(0, 150)}`)
+                else if (parsed.summaryOfActions) keyEvents.push(`• ${parsed.summaryOfActions.substring(0, 150)}`)
+                else if (parsed.response) keyEvents.push(`• Result: ${String(parsed.response).substring(0, 100)}`)
+            } catch {
+                // Skip non-JSON messages
+            }
+        }
+        const summary = keyEvents.length > 0 ? keyEvents.slice(-10).join('\n') : `${messages.length} messages processed.`
+        return new HumanMessage({
+            content: `[SUMMARIZED CHUNK - ${messages.length} messages]\n\n${summary}`,
+        })
     }
 }

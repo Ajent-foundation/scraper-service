@@ -1588,7 +1588,7 @@ export class LLMWrapper<I extends z.ZodType, O extends z.ZodType> {
         return [
             {
                 provider: "ConfidentialPhalaLLM",
-                model: "phala/deepseek-chat-v3-0324",
+                model: "openai/gpt-oss-120b",
                 temperature: 0.5
             },
         ]
