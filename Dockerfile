@@ -32,6 +32,9 @@ COPY src ./src
 # Build TypeScript
 RUN npm run build
 
+# Copy cachedPrompts (JSON files not processed by tsc)
+RUN cp -r ./src/ai/cachedPrompts ./dist/ai/cachedPrompts
+
 # Production stage
 FROM node:18-slim
 
