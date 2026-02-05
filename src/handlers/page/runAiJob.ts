@@ -112,9 +112,9 @@ async function runAiJob(
 
 		// Default providers if not specified in request
 		const defaultProviders = [
-			{ provider: "OpenRouter" as const, model: "openai/gpt-5.2", temperature: 1.0 },
 			{ provider: "ConfidentialPhalaLLM" as const, model: "qwen/qwen3-vl-30b-a3b-instruct", temperature: 1.0 },
 			{ provider: "ConfidentialPhalaLLM" as const, model: "moonshotai/kimi-k2.5", temperature: 1.0 },
+			{ provider: "OpenRouter" as const, model: "openai/gpt-5.2", temperature: 1.0 },
 		];
 		const llmProviders = req.body.llmProviders && req.body.llmProviders.length > 0 
 			? req.body.llmProviders 
