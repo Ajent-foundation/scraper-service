@@ -93,7 +93,17 @@ WORKFLOW:
     // Auto-run screenshot + getElms + tab info after every action; pass as last message in invoke only (never push to state.messages)
     const getCurrentStateMessage = async (global: TBrowserContext): Promise<HumanMessage | null> => {
         const content: Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }> = [
-            { type: "text", text: "What to do next now?" },
+            { type: "text", text: `CHECKPOINT - Before taking action, ask yourself:
+
+1. Is my task COMPLETE? → If yes, STOP and return final response.
+2. Is user input required (OTP/code I don't have)? → If yes, STOP and ask for input.
+3. Am I about to repeat the SAME action I just did? → If yes, STOP - you are looping.
+4. Have I already typed in this field? → If yes, DO NOT touch it again - move on.
+
+ONLY proceed if you have a NEW, DIFFERENT action to take.
+If stuck or unsure, STOP and explain the situation.
+
+Current page state:` },
         ];
         
         // Add tab info if there are multiple tabs
