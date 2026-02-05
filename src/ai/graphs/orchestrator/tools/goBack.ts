@@ -6,7 +6,9 @@ import { z } from "zod";
 export const goBack: TZodBaseToolDefinition<TBrowserContext, any, any> = {
     name: "goBack",
     description: "Navigate back to the previous page in browser history. This will try page.goBack() first, and if that fails, it will use the keyboard shortcut Alt+ArrowLeft as a fallback.",
-    zodParameters: z.object({}),
+    zodParameters: z.object({
+        reason: z.string().describe("Why you are going back (e.g., 'Return to account list after viewing details')"),
+    }),
     implementation: async (global, args) => {
         const { page } = await getBrowserAndPage(global);
         

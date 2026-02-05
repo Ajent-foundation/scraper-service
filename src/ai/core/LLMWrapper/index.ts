@@ -236,6 +236,17 @@ export class LLMWrapper<I extends z.ZodType, O extends z.ZodType> {
         if(providers.length === 1 && shouldUseFallbackProviders) {
             const backupProviders: TLLMProvider[] = [
                 {
+                    provider: "ConfidentialPhalaLLM",
+                    model: "moonshotai/kimi-k2-thinking",
+                    temperature: 1.0
+                },
+                {
+                    provider: "ConfidentialPhalaLLM",
+                    model: "qwen/qwen3-vl-30b-a3b-instruct",
+                    temperature: 1.0
+                },
+                /*
+                {
                     provider: "OpenAI",
                     model: "gpt-4.1-2025-04-14",
                     temperature: 1
@@ -250,6 +261,7 @@ export class LLMWrapper<I extends z.ZodType, O extends z.ZodType> {
                     model: "gemini-2.0-flash",
                     temperature: 1
                 },
+                */
             ]
 
             // Get the primary provider (at index 0) to move it to the end of fallbacks
@@ -286,6 +298,7 @@ export class LLMWrapper<I extends z.ZodType, O extends z.ZodType> {
             //})
 
             // push anthropic / gemini as fallback
+            /*
             providers.push({
                 provider: "Anthropic",
                 model: "claude-sonnet-4-20250514",
@@ -295,6 +308,7 @@ export class LLMWrapper<I extends z.ZodType, O extends z.ZodType> {
                 model: "gemini-2.0-flash",
                 temperature: 1
             })
+            */
         }
 
         return providers.map((provider) => {
@@ -372,6 +386,19 @@ export class LLMWrapper<I extends z.ZodType, O extends z.ZodType> {
                     maxTokens: provider.maxTokens,
                     openAIApiKey: apiKey || process.env['CONFIDENTIAL_PHALA_LLM_API_KEY'],
                     apiKey: apiKey || process.env['CONFIDENTIAL_PHALA_LLM_API_KEY'],
+                    streaming: true,
+                    configuration: {
+                        baseURL: 'https://api.redpill.ai/v1',
+                    },
+                    ...overrides,
+                })
+            } else if(provider.provider === "RedPillLLM"){
+                return new ChatOpenAI({
+                    model: provider.model,
+                    temperature: provider.temperature,
+                    maxTokens: provider.maxTokens,
+                    openAIApiKey: apiKey || process.env['REDPILL_API_KEY'],
+                    apiKey: apiKey || process.env['REDPILL_API_KEY'],
                     streaming: true,
                     configuration: {
                         baseURL: 'https://api.redpill.ai/v1',
@@ -1570,6 +1597,17 @@ export class LLMWrapper<I extends z.ZodType, O extends z.ZodType> {
     }
 
     /**
+     * Override the providers with an array of providers (for fallback support)
+     * @param {TLLMProvider[]} providers The providers to override (tried in order)
+     * @returns {LLMWrapper<I, O>} The new instance
+     */
+    public overrideProviders(providers: TLLMProvider[]): LLMWrapper<I, O> {
+        const newInstance = this._createCopy()
+        newInstance._providers = providers
+        return newInstance
+    }
+
+    /**
      * Override the name
      * @param {string} name The name to override
      * @returns {LLMWrapper<I, O>} The new instance
@@ -1588,8 +1626,23 @@ export class LLMWrapper<I extends z.ZodType, O extends z.ZodType> {
         return [
             {
                 provider: "ConfidentialPhalaLLM",
+                model: "deepseek/deepseek-chat-v3.1",
+                temperature: 1.0
+            },
+            {
+                provider: "ConfidentialPhalaLLM",
+                model: "moonshotai/kimi-k2-thinking",
+                temperature: 1.0
+            },
+            {
+                provider: "ConfidentialPhalaLLM",
                 model: "openai/gpt-oss-120b",
-                temperature: 0.5
+                temperature: 1.0
+            },
+            {
+                provider: "ConfidentialPhalaLLM",
+                model: "qwen/qwen3-vl-30b-a3b-instruct",
+                temperature: 1.0
             },
         ]
     }

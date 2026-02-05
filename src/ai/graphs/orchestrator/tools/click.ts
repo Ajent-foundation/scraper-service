@@ -14,6 +14,7 @@ export const click: TZodBaseToolDefinition<TBrowserContext, any, any> = {
         y: z.number().describe("Y coordinate to click"),
         clickCount: z.number().optional().default(1).describe("Number of clicks (1 for single click, 2 for double click)"),
         button: z.enum(["left", "right", "middle"]).optional().default("left").describe("Mouse button to use"),
+        reason: z.string().describe("Why you are clicking this element (e.g., 'Click login button to submit credentials')"),
     }),
     implementation: async (global, args) => {
         const { page } = await getBrowserAndPage(global);

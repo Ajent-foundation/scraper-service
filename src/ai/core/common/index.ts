@@ -7,7 +7,7 @@ type JsonSchema7Type = any;
  * Configuration for LLM providers
  */
 export type TLLMProvider = {
-    provider: "OpenAI" | "Anthropic" | "Gemini" | "Groq" | "ConfidentialPhalaLLM" | "OpenRouter",
+    provider: "OpenAI" | "Anthropic" | "Gemini" | "Groq" | "ConfidentialPhalaLLM" | "OpenRouter" | "RedPillLLM",
     temperature: number,
     maxTokens?: number,
     model: string,

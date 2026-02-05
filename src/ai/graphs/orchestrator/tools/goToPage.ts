@@ -12,6 +12,7 @@ export const goToPage: TZodBaseToolDefinition<TBrowserContext, any, any> = {
         url: z.url().describe("The URL to navigate to (must start with http:// or https://)"),
         fullPage: z.boolean().optional().describe("Whether to wait for full page load including all resources"),
         stayOnPage: z.boolean().optional().describe("Whether to stay on the current page if navigation opens a new tab"),
+        reason: z.string().describe("Why you are navigating to this URL (e.g., 'Navigate to bank login page')"),
     }),
     implementation: async (global, args) => {
         const { browser, page, index } = await getBrowserAndPage(global);

@@ -12,6 +12,7 @@ export const move: TZodBaseToolDefinition<TBrowserContext, any, any> = {
     zodParameters: z.object({
         x: z.number().describe("X coordinate to move to"),
         y: z.number().describe("Y coordinate to move to"),
+        reason: z.string().describe("Why you are moving the mouse (e.g., 'Hover over menu to reveal dropdown')"),
     }),
     implementation: async (global, args) => {
         const { page } = await getBrowserAndPage(global);

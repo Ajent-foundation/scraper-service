@@ -22,6 +22,12 @@ import { TGeneralAgent } from '../../ai/prompts/agents/generalAgent';
 
 export const RequestParamsSchema = z.object({});
 
+const LLMProviderSchema = z.object({
+	provider: z.enum(["OpenAI", "Anthropic", "Gemini", "Groq", "ConfidentialPhalaLLM", "OpenRouter", "RedPillLLM"]),
+	model: z.string(),
+	temperature: z.number().optional().default(1.0),
+});
+
 export const RequestBodySchema = z.custom<BaseRequest>().and(
 	z.object({
 		state: z.record(z.string(), z.unknown()),
@@ -31,6 +37,8 @@ export const RequestBodySchema = z.custom<BaseRequest>().and(
 		userPrompt: z.string().describe("The user prompt to use for the AI job"),
 		finalResponseJsonSchema: z.string().describe("The JSON schema to use for the final response"),
 		disableGoToPage: z.boolean().optional().default(false).describe("If true, disables the goToPage tool since navigation is already handled"),
+		llmProviders: z.array(LLMProviderSchema).optional().describe("Array of LLM providers for the outer supervisor agent (tried in order as fallbacks). Defaults to OpenRouter/gpt-5.2"),
+		operatorLlmProviders: z.array(LLMProviderSchema).optional().describe("Array of LLM providers for the browser operator agent (tried in order as fallbacks). If not set, uses same as llmProviders"),
 	})
 );
 
@@ -102,21 +110,29 @@ async function runAiJob(
 			envVariables: req.body.envVariables,
 		};
 
-		const agent = (agents.generalAgent as unknown as TGeneralAgent).overrideProvider({
-			provider: "ConfidentialPhalaLLM",
-			model: "openai/gpt-oss-120b",
-			temperature: 1.0,
-		})
-		//const agent = (agents.generalAgent as unknown as TGeneralAgent).overrideProvider({
-		//	provider: "OpenAI",
-		//	model: "gpt-4o",
-		//	temperature: 1.0,
-		//})
+		// Default providers if not specified in request
+		const defaultProviders = [
+			{ provider: "OpenRouter" as const, model: "openai/gpt-5.2", temperature: 1.0 },
+			{ provider: "ConfidentialPhalaLLM" as const, model: "qwen/qwen3-vl-30b-a3b-instruct", temperature: 1.0 },
+			{ provider: "ConfidentialPhalaLLM" as const, model: "moonshotai/kimi-k2.5", temperature: 1.0 },
+		];
+		const llmProviders = req.body.llmProviders && req.body.llmProviders.length > 0 
+			? req.body.llmProviders 
+			: defaultProviders;
+		
+		// Outer supervisor agent
+		const agent = (agents.generalAgent as unknown as TGeneralAgent).overrideProviders(llmProviders)
+
+		// Browser operator agent - use operatorLlmProviders if specified, otherwise same as outer
+		const operatorProviders = req.body.operatorLlmProviders && req.body.operatorLlmProviders.length > 0
+			? req.body.operatorLlmProviders
+			: llmProviders;
+		const operatorAgent = (agents.generalAgent as unknown as TGeneralAgent).overrideProviders(operatorProviders)
 
 		// Create browser operator as a subagent with browser system prompt
 		const browserOperator = createBrowserOperator(
 			globalContext,
-			agent,
+			operatorAgent,
 			page.url(),
 			req.body.browserSystemPrompt,
 			req.body.disableGoToPage
@@ -147,7 +163,7 @@ async function runAiJob(
 		// Create stop checkpoint for task completion
 		const stopZodSchema = z.object({
 			summary: z.string().describe("A summary of the actions taken to accomplish the task"),
-			response: finalResponseJsonSchema.optional().describe("The final answer or result of completing the task"),
+			response: finalResponseJsonSchema.describe("REQUIRED: The final answer containing isUserInputRequired (boolean) and userInputs (array) if MFA/user input is needed. ALWAYS populate this field based on what the Browser Operator reported."),
 			isCriticalError: z.boolean().optional().default(false).describe("Whether this is critical error that prevents task completion"),
 		});
 		const stopCheckpoint: TStopCheckpoint<TBrowserContext, typeof stopZodSchema> = {
@@ -175,8 +191,7 @@ async function runAiJob(
 			false, // shouldUseTodos - TODO functionality disabled
 			undefined, // onTodoUpdate
 			undefined, // callbacks
-			true, // autoSummarize - prevent context overflow from browser operations
-			undefined
+			true // autoSummarize - prevent context overflow from browser operations
 		);
 
 		const state = decoder(req.body.state);
@@ -199,7 +214,7 @@ async function runAiJob(
 			objective: req.body.userPrompt,
 			messages: messages,
 		}, {
-			recursionLimit: 100,
+			recursionLimit: 50,
 			tags: [
 				`browser_ai_job_${res.locals.sessionID}`,
 			],

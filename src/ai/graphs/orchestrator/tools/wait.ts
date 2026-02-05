@@ -8,6 +8,7 @@ export const wait: TZodBaseToolDefinition<TBrowserContext, any, any> = {
     description: "Wait for a specified amount of time. Useful for waiting for page loads, animations, or dynamic content.",
     zodParameters: z.object({
         milliseconds: z.number().describe("Number of milliseconds to wait"),
+        reason: z.string().describe("Why you are waiting (e.g., 'Wait for page to load after clicking')"),
     }),
     implementation: async (global, args) => {
         // Use existing delay implementation (following executeCommands pattern)

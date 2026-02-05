@@ -34,10 +34,10 @@ export function createBrowserOperator(
         ? browserTools.filter(tool => tool.name !== "goToPage")
         : browserTools;
     
-    // Build tools description (screenshot and getElms are auto-run after every action; not exposed as tools)
+    // Build tools description (screenshot, getElms, and tabs are auto-run after every action; not exposed as tools)
     const toolsDescription = disableGoToPage
-        ? "Browser automation tools including: click (click elements), type (type text), scroll (scroll pages), move (move mouse), wait (wait for delays), and goBack (navigate back to previous page). Note: Navigation is already handled, so goToPage is not available. After each action you will see the current page (screenshot and elements) and decide what to do next."
-        : "Browser automation tools including: goToPage (navigate to URLs), click (click elements), type (type text), scroll (scroll pages), move (move mouse), wait (wait for delays), and goBack (navigate back to previous page). After each action you will see the current page (screenshot and elements) and decide what to do next.";
+        ? "Browser automation tools including: click (click elements), type (type text), scroll (scroll pages), move (move mouse), wait (wait for delays), goBack (navigate back), pressEnter (press Enter key to submit forms), pressEscape (press Escape key to close popups), switchTab (switch to a tab by index), closeTab (close current tab), captureDataScreenshot (capture and label a screenshot to record/remember data or page state). Note: Navigation is already handled, so goToPage is not available. After each action you will see the current page (screenshot, elements, and tab list if multiple tabs are open)."
+        : "Browser automation tools including: goToPage (navigate to URLs), click (click elements), type (type text), scroll (scroll pages), move (move mouse), wait (wait for delays), goBack (navigate back), pressEnter (press Enter key to submit forms), pressEscape (press Escape key to close popups), switchTab (switch to a tab by index), closeTab (close current tab), captureDataScreenshot (capture and label a screenshot to record/remember data or page state). After each action you will see the current page (screenshot, elements, and tab list if multiple tabs are open).";
     
     // Build environment variables info for context
     const envVarsInfo = globalContext.envVariables && Object.keys(globalContext.envVariables).length > 0
@@ -57,50 +57,31 @@ SMART MAPPING - MATCH FORM FIELDS TO THE BEST AVAILABLE VARIABLE:
     // Build guidelines with navigation note if disabled
     const defaultGuidelines = `You are a browser automation specialist. Your goal is to accomplish the exact task given to you by intelligently using browser tools.
 
+NEVER GUESS VALUES - STOP AND ASK:
+- If a page asks for a code, OTP, PIN, or any value you don't have - DO NOT TYPE ANYTHING
+- Only type values from: $variableName environment variables OR values explicitly given in your task
+- If you don't have a value, STOP and report that user input is required
+- NEVER make up or guess codes - this will cause failures
+
 CRITICAL RULES:
 1. ALWAYS stay focused on the exact task given - DO NOT deviate or add extra steps
-2. Start by understanding what the user wants to accomplish
-3. Use the page elements and screenshot you receive before each decision to see what's on the page
-4. Use the screenshot and elements data to understand the CURRENT state of the page - NOT what might come next
-5. ACCURACY IS CRITICAL: You must identify EXACTLY what is currently visible on the page, not what you think will happen next
-${disableGoToPage ? "6. Navigation is already handled - you are already on the correct page. DO NOT try to navigate." : "6. Navigate to pages using goToPage when needed"}
-7. Click elements using their coordinates from the elements data you receive
-8. Type text into input fields using type${envVarsInfo ? "\n   - For sensitive values (username, password, etc.), use the $variableName format from available environment variables" : ""}
-9. Scroll pages when content is not visible
-10. Wait for page loads and dynamic content when necessary
-11. You will receive the current page (screenshot and elements) before each decision—use it to verify actions and show progress
-12. Complete ONLY what is asked - do not add unnecessary actions
-13. Always explain what you're doing and why${envVarsInfo ? "\n14. When filling forms with credentials, ALWAYS use $variableName format (e.g., $username, $password) - never type actual values" : ""}
-${envVarsInfo ? "15" : "14"}. REMEMBER THIS DEVICE - AUTOMATIC HANDLING: If you see any prompt asking to "remember this device", "save this device", "trust this device", or similar, you MUST AUTOMATICALLY select "No", "Don't remember", "Don't save", or the equivalent negative option WITHOUT asking the user. This should be handled automatically as part of the login flow - DO NOT return this as a userInput. Simply click the "No" option and continue. NEVER select "Yes" or "Remember" for device remembering prompts.
-
-USER INPUT REQUIREMENTS - CRITICAL:
-- When the page asks for user input, you MUST identify EXACTLY what is currently visible on the page
-- Return user inputs ONLY for what is currently needed on the current page, NOT for future steps
-- If the page asks "How would you like to receive the code?" - return multiple_choice for THAT question
-- If the page asks "Enter the code" - return otp for THAT question
-- DO NOT skip ahead or assume what will come next - handle ONLY what is currently visible
-- Check the page carefully: if it's asking for method selection, return multiple_choice. If it's asking for code entry, return otp.
-- The user inputs you return must match EXACTLY what the page is currently asking for
-- DO NOT return userInputs for "remember this device" prompts - these should be handled automatically by selecting "No" (see rule ${envVarsInfo ? "15" : "14"})
-
-RESPONSE DESCRIPTION REQUIREMENTS - CRITICAL:
-- When you return a response via the stop checkpoint, you MUST include detailed information about the current page state
-- If user input is required, describe EXACTLY what the page is asking for in your response text:
-  * The exact question/prompt text visible on the page
-  * If it's a multiple choice, list ALL available options (e.g., "Text" and "Call")
-  * If it's code entry, specify what type of code (OTP, PIN, etc.)
-  * The input field type and any relevant details
-- This detailed description is essential because you are a sub-agent - the parent supervisor needs this information to build the userInputs response correctly
-- Be specific: "The page asks 'How would you like to receive your authorization code?' with options: 'Text to mobile' and 'Call to mobile'" is better than "The page requires user input"
+2. Use the page elements and screenshot you receive before each decision to see what's on the page
+3. Use the screenshot and elements data to understand the CURRENT state of the page - NOT what might come next
+4. ACCURACY IS CRITICAL: You must identify EXACTLY what is currently visible on the page
+${disableGoToPage ? "5. Navigation is already handled - you are already on the correct page. DO NOT try to navigate." : "5. Navigate to pages using goToPage when needed"}
+6. Click elements using their coordinates from the elements data you receive
+7. Type text into input fields using type${envVarsInfo ? " - use $variableName format for credentials" : ""}
+8. Scroll pages when content is not visible
+9. Wait for page loads and dynamic content when necessary
+10. Complete each action fully (type → submit)
+11. Always explain what you're doing and why
 
 WORKFLOW:
-- You will receive the current page (screenshot and elements) before each decision—use it to understand the CURRENT page state
+- You will receive the current page (screenshot and elements) before each decision
 - Identify EXACTLY what the page is asking for RIGHT NOW
-- Plan your actions based on the EXACT task objective and CURRENT page state
-- Execute actions step by step (${disableGoToPage ? "click, type, etc." : "navigate, click, type, etc."}) - ONLY what's needed
-- Report back what was accomplished
-
-IMPORTANT: Stay focused on the task. Do not deviate from what is requested. Complete the task efficiently without adding unnecessary steps.${envVarsInfo}`;
+- If the page asks for a value you don't have, STOP and ask for user input
+- Execute actions step by step (${disableGoToPage ? "click, type, pressEnter, etc." : "navigate, click, type, pressEnter, etc."})
+- Report back what was accomplished${envVarsInfo}`;
 
     // Combine default guidelines with bank-specific context if provided
     let finalGuidelines = defaultGuidelines;
@@ -109,11 +90,34 @@ IMPORTANT: Stay focused on the task. Do not deviate from what is requested. Comp
         finalGuidelines = `${defaultGuidelines}\n\n${browserSystemPrompt}`;
     }
 
-    // Auto-run screenshot + getElms after every action; pass as last message in invoke only (never push to state.messages)
+    // Auto-run screenshot + getElms + tab info after every action; pass as last message in invoke only (never push to state.messages)
     const getCurrentStateMessage = async (global: TBrowserContext): Promise<HumanMessage | null> => {
         const content: Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }> = [
             { type: "text", text: "What to do next now?" },
         ];
+        
+        // Add tab info if there are multiple tabs
+        try {
+            const pages = await global.puppeteerBrowser.pages();
+            if (pages.length > 1) {
+                const tabsInfo: string[] = [];
+                for (let i = 0; i < pages.length; i++) {
+                    const page = pages[i];
+                    try {
+                        const title = await page.title();
+                        const url = page.url();
+                        const isCurrent = page === global.page;
+                        tabsInfo.push(`${isCurrent ? "→ " : "  "}[${i}] ${title || "(No title)"} - ${url}`);
+                    } catch (e) {
+                        tabsInfo.push(`  [${i}] (Error reading tab)`);
+                    }
+                }
+                content.push({ type: "text", text: `⚠️ Multiple tabs open (${pages.length}):\n${tabsInfo.join("\n")}\nUse closeTab to close unwanted tabs, or switchTab to switch.` });
+            }
+        } catch (e) {
+            // Ignore tab listing errors
+        }
+        
         try {
             const screenshotResult = await screenshot.implementation(global, {}, {} as any);
             const screenshotData = typeof screenshotResult === "string" ? { text: screenshotResult, base64Images: [] as string[] } : screenshotResult;

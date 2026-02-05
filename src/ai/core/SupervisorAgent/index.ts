@@ -261,7 +261,7 @@ export class SupervisorAgent<G extends {
                                     SupervisorAgent.name,
                                 ],
                             },
-                            undefined,
+                            { timeout: 30000 }, // 30 second timeout per LLM call
                             undefined
                         );
 
@@ -713,7 +713,7 @@ export class SupervisorAgent<G extends {
                                 ...newMessages
                             ]
                         }, {
-                            recursionLimit: 50,
+                            recursionLimit: 75,
                         })
 
                         const finalAnswerMessage = result.messages[result.messages.length - 1]

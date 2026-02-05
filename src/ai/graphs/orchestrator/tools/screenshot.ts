@@ -1,6 +1,6 @@
 import { TZodBaseToolDefinition } from "../../../core/common/index";
 import { TBrowserContext } from "../types";
-import { getBrowserURL } from "../../../../apis/browsers-cmgr";
+import { getBrowserHostname } from "../../../../apis/browsers-cmgr";
 import actionImpl from "../../../../browser/interface/impl/index";
 import { z } from "zod";
 
@@ -9,15 +9,12 @@ export const screenshot: TZodBaseToolDefinition<TBrowserContext, any, any> = {
     description: "Take a system-level screenshot (VNC screenshot) of the browser window. This captures the entire browser window including browser chrome.",
     zodParameters: z.object({}),
     implementation: async (global, args) => {
-        // Use existing implementation (following executeCommands pattern)
-        // Note: executeCommands builds URL from session.url, but we use getBrowserURL helper
-        const browserURL = getBrowserURL(global.session);
-        const firstColon = browserURL.indexOf(':');
-        const baseUrl = browserURL.substring(0, browserURL.indexOf(':', firstColon + 1));
+        const hostname = getBrowserHostname(global.session);
         const appPort = global.session.appPort;
-        
+        const url = `http://${hostname}:${appPort}`;
+
         const result = await actionImpl.systemScreenshotV2({
-            url: `${baseUrl}:${appPort}`,
+            url,
             resize: 50,
             quality: 100,
         });

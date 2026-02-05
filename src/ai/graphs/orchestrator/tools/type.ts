@@ -20,6 +20,7 @@ CRITICAL: For sensitive values like usernames, passwords, or credentials:
         x: z.number().describe("X coordinate of the input field"),
         y: z.number().describe("Y coordinate of the input field"),
         text: z.string().describe("The text to type. For sensitive values (credentials), you MUST use a $variableName placeholder from the AVAILABLE ENVIRONMENT VARIABLES in the context. NEVER type actual password values."),
+        reason: z.string().describe("Why you are typing this text (e.g., 'Enter username into login field')"),
     }),
     implementation: async (global, args) => {
         const { page } = await getBrowserAndPage(global);

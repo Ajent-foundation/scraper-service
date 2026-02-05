@@ -15,6 +15,7 @@ export const scroll: TZodBaseToolDefinition<TBrowserContext, any, any> = {
         y: z.number().optional().describe("Y coordinate for 'to' or 'atPosition' scroll"),
         scrollX: z.number().optional().describe("Horizontal scroll amount for 'atPosition' scroll"),
         scrollY: z.number().optional().describe("Vertical scroll amount for 'atPosition' scroll"),
+        reason: z.string().describe("Why you are scrolling (e.g., 'Scroll down to see more accounts')"),
     }),
     implementation: async (global, args) => {
         const { page } = await getBrowserAndPage(global);
